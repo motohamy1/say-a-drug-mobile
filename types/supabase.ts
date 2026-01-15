@@ -47,44 +47,74 @@ export interface Database {
                 Row: {
                     id: string
                     created_at: string
-                    trade_name: string
+                    trade_name: string | null
+                    "Drugname": string | null
                     scientific_name: string | null
-                    price: number
+                    price: number | null
+                    "Price": number | null
                     currency: string
                     manufacturer: string | null
+                    "Company": string | null
                     description: string | null
                     image_url: string | null
                     active_ingredients: string[] | null
                     dosage_form: string | null
+                    "Form": string | null
                     strength: string | null
+                    "Search Query": string | null
+                    "Date": string | null
+                    "Price_prev": number | null
+                    "Price Changed": boolean | null
+                    "Region": string | null
+                    "Category": string | null
                 }
                 Insert: {
                     id?: string
                     created_at?: string
-                    trade_name: string
+                    trade_name?: string | null
+                    "Drugname"?: string | null
                     scientific_name?: string | null
-                    price: number
+                    price?: number | null
+                    "Price"?: number | null
                     currency?: string
                     manufacturer?: string | null
+                    "Company"?: string | null
                     description?: string | null
                     image_url?: string | null
                     active_ingredients?: string[] | null
                     dosage_form?: string | null
+                    "Form"?: string | null
                     strength?: string | null
+                    "Search Query"?: string | null
+                    "Date"?: string | null
+                    "Price_prev"?: number | null
+                    "Price Changed"?: boolean | null
+                    "Region"?: string | null
+                    "Category"?: string | null
                 }
                 Update: {
                     id?: string
                     created_at?: string
-                    trade_name?: string
+                    trade_name?: string | null
+                    "Drugname"?: string | null
                     scientific_name?: string | null
-                    price?: number
+                    price?: number | null
+                    "Price"?: number | null
                     currency?: string
                     manufacturer?: string | null
+                    "Company"?: string | null
                     description?: string | null
                     image_url?: string | null
                     active_ingredients?: string[] | null
                     dosage_form?: string | null
+                    "Form"?: string | null
                     strength?: string | null
+                    "Search Query"?: string | null
+                    "Date"?: string | null
+                    "Price_prev"?: number | null
+                    "Price Changed"?: boolean | null
+                    "Region"?: string | null
+                    "Category"?: string | null
                 }
                 Relationships: []
             }

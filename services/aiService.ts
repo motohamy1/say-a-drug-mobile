@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { drugService } from './drugService';
+import { supabase } from '../lib/supabase';
 
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
 
@@ -19,62 +19,103 @@ export const aiService = {
      * Sends a text message to the AI, performing a RAG search on the drug database first.
      */
     async sendMessageByText(message: string): Promise<string> {
+        console.log("Debug: sendMessageByText called with:", message);
         if (!API_KEY || API_KEY === 'MISSING_KEY') {
             return "Configuration Error: Gemini API Key is missing. Please check your .env file and restart the server with --clear.";
         }
 
         try {
-            // 1. Search for relevant drug info
-            // We use a broader search to give more context to the AI
-            const drugs = await drugService.searchDrugs(message);
+            // 1. Search Supabase for relevant drug data
+            // We use a simple ILIKE search on Trade Name or Drugname for the first few words of the message
+            // or the whole message if it's short.
+            const searchTerms = message.trim().split(/\s+/).slice(0, 3).join(' ');
 
-            // 2. Construct System Prompt with Context
-            let context = "No specific drug information found in the local database for this query.";
-            if (drugs.length > 0) {
-                context = `Found the following specific drug records in the database:\n${JSON.stringify(drugs, null, 2)}`;
+            console.log("Debug: Searching Supabase for:", searchTerms);
+
+            const { data: drugs, error: searchError } = await supabase
+                .from('drugs')
+                .select('*')
+                .or(`trade_name.ilike.%${searchTerms}%,Drugname.ilike.%${searchTerms}%,scientific_name.ilike.%${searchTerms}%`)
+                .limit(5);
+
+            if (searchError) {
+                console.error("Supabase search error:", searchError);
             }
 
+            let drugContext = "";
+            if (drugs && drugs.length > 0) {
+                drugContext = "Here is relevant information from our drug database:\n";
+                drugs.forEach((drug, index) => {
+                    drugContext += `--- DRUG ${index + 1} ---\n`;
+                    drugContext += `Name: ${drug.trade_name || drug.Drugname}\n`;
+                    drugContext += `Scientific Name: ${drug.scientific_name}\n`;
+                    drugContext += `Manufacturer: ${drug.manufacturer || drug.Company}\n`;
+                    drugContext += `Price: ${drug.price || drug.Price} ${drug.currency}\n`;
+                    drugContext += `Form: ${drug.dosage_form || drug.Form}\n`;
+                    drugContext += `Description: ${drug.description}\n`;
+                    drugContext += `Category: ${drug.Category}\n`;
+                    drugContext += `------------------\n\n`;
+                });
+            } else {
+                drugContext = "No specific match found in our primary database for the current query terms. Use general knowledge but state if specific database info is missing.\n";
+            }
+
+            // 2. Construct System Prompt
             const prompt = `
-You are an expert Medical AI Assistant specializing in pharmacology and pediatric dosing.
-Your primary goal is to provide accurate, safe, and database-specific drug information.
+You are a highly professional, compassionate, and expert Pharmacist AI Assistant. 
+You provide accurate medical information based on the provided database context.
 
-### OPERATIONAL RULES:
-1. **Database Priority**: Use the provided "Context" from our database as the source of truth for trade names, ingredients, and available strengths.
-2. **Dose Extraction**: If the user asks for a dose, look for the 'strength', 'dosage_form', and 'description' fields in the context. 
-3. **Medical Specificity**: If the drug is found in the database, extract and explain the dosage clearly.
-4. **Safety Warning**: If a drug is NOT in our database, you may provide general medical knowledge about it but ALWAYS include a disclaimer: "Note: This medication is not in our specific database. Please consult your physician or pharmacist before any use."
-5. **Tone**: Be professional, helpful, and concise. Use clear formatting (bullet points) for dosage instructions.
-6. **No Guessing**: If you are unsure about a dose, state: "Specific dosing for this medication should be determined by a healthcare provider based on the patient's age and weight."
+### DATABASE CONTEXT (From Supabase):
+${drugContext}
 
-Context from Database:
-${context}
+### USER QUERY: "${message}"
 
-User Query: ${message}
+### INSTRUCTIONS:
+1.  **Response Format**: For the primary drug discussed, you MUST start your response with these exact bullet points:
+    - trade_name: [Insert Trade Name]
+    - active ingredient: [Insert Active Ingredient(s)]
+    - use or category: [Insert Use/Category]
+    - availability: [State if available in Egypt based on the database or general knowledge for Egypt market]
 
-Response (Medical Assistant):
+2.  **Human-Like Interaction**: After the bullet points, provide a brief, professional explanation of the drug's purpose.
+
+3.  **Database vs General Knowledge**:
+    - If the drug information is found in the **DATABASE CONTEXT**, use it as your primary source.
+    - If the drug is NOT in the database, you MAY still provide information based on your general knowledge. However, you MUST explicitly start the explanation by saying something like: "I couldn't find this specific medication in our private database, but based on general medical knowledge..."
+
+4.  **Dosage Intelligence (CRITICAL)**:
+    - If the user asks about dosage but has NOT provided the patient's **age** or **weight**, you MUST NOT give a specific dosage. Instead, ask for these details in a helpful, human-like way (e.g., "To provide the most accurate and safe dosage for you, could you please tell me the patient's age and weight?").
+    - If the user HAS provided age/weight, use the most effective medical dosage calculation (pediatric or adult protocols) to provide a precise, easy-to-understand instruction. Avoid "bulk" calculations; be specific.
+
+5.  **Language Handling**: Always reply in the same language the user queried in (Arabic or English).
+
+6.  **Closing and Follow-up**: End your response by asking if the user has more questions or needs clarification, and leave the choice to them.
+
+7.  **Safety**: Always include a standard medical disclaimer reminding the user to consult a doctor.
+
+Return your professional response now.
             `;
 
             // 3. Call Gemini
+            console.log("Debug: Calling Gemini generating content...");
             const result = await model.generateContent(prompt);
+            console.log("Debug: Gemini response received.");
+
             const response = result.response;
             return response.text().trim();
 
         } catch (error) {
             console.error("AI Service Error:", error);
-            return "I'm sorry, I'm having trouble connecting to the medical brain right now. Please try again.";
+            return "I'm sorry, I'm having trouble analyzing the medical database right now. Please try again.";
         }
     },
 
     /**
      * Handles audio input by first transcribing it via Gemini, then processing it as text.
-     * @param base64Audio Audio data in base64 format (no data URI prefix needed, just the raw base64)
-     * @param mimeType Mime type of the audio (e.g., 'audio/m4a' or 'audio/mp4')
      */
     async processAudio(base64Audio: string, mimeType: string = 'audio/m4a'): Promise<{ text: string, reply: string }> {
         try {
-            // 1. Transcribe Audio using Gemini
-            // Gemini 1.5 Flash is multimodal. We can ask it to transcribe.
-            const transcriptionPrompt = "Transcribe exactly what the user said in this audio. Do not adds any commentary.";
+            const transcriptionPrompt = "Transcribe exactly what the user said in this audio. Do not add any commentary.";
 
             const result = await model.generateContent([
                 transcriptionPrompt,
@@ -89,7 +130,6 @@ Response (Medical Assistant):
             const transcription = result.response.text();
             console.log("Transcription:", transcription);
 
-            // 2. Process as Text (RAG)
             const reply = await this.sendMessageByText(transcription);
 
             return {

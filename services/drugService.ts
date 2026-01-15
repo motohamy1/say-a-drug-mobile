@@ -5,7 +5,7 @@ export type Drug = Database['public']['Tables']['drugs']['Row'];
 
 export const drugService = {
     /**
-     * Search for a drug by name or active ingredient.
+     * Search for a drug by name or category.
      * Currently returns the single best match to simulate a direct bot answer.
      */
     async searchDrug(query: string): Promise<Drug | null> {
@@ -13,7 +13,7 @@ export const drugService = {
             const { data, error } = await supabase
                 .from('drugs')
                 .select('*')
-                .or(`trade_name.ilike.%${query}%,active_ingredients.cs.{${query}}`)
+                .or(`trade_name.ilike.%${query}%,Category.ilike.%${query}%`)
                 .limit(1)
                 .maybeSingle();
 
@@ -37,7 +37,7 @@ export const drugService = {
             const { data, error } = await supabase
                 .from('drugs')
                 .select('*')
-                .or(`trade_name.ilike.%${query}%,active_ingredients.cs.{${query}}`)
+                .or(`trade_name.ilike.%${query}%,Category.ilike.%${query}%`)
                 .limit(5);
 
             if (error) {

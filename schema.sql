@@ -26,15 +26,7 @@ create table drugs (
   id uuid default gen_random_uuid() primary key,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null,
   trade_name text not null,
-  scientific_name text,
-  price numeric not null,
-  currency text default 'USD',
-  manufacturer text,
-  description text,
-  image_url text,
-  active_ingredients text[],
-  dosage_form text,
-  strength text
+  category text
 );
 
 alter table drugs enable row level security;
