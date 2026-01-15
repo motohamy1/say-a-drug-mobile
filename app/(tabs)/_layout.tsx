@@ -13,13 +13,16 @@ export default function TabLayout() {
         headerTintColor: "#fff",
         tabBarStyle: {
           backgroundColor: "#0a1416",
+          borderTopEndRadius: 25,
+          borderTopStartRadius: 25,
         },
         headerShown: false,
-      }}>
+
+      }} >
       <Tabs.Screen
         name="Say"
         options={{
-          title: "Chat",
+          title: "Drugs Area",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "chatbubbles" : "chatbubbles-outline"}
@@ -30,9 +33,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="index"
+        name="Index"
         options={{
-          title: "Home",
+          title: "Med Center",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "home" : "home-outline"}
@@ -43,9 +46,9 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="about"
+        name="Profile"
         options={{
-          title: "About",
+          title: "Profile",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "information-circle" : "information-circle-outline"}

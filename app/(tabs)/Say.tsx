@@ -67,8 +67,8 @@ const ChatBubble: React.FC<{ message: Message }> = ({ message }) => (
   <View className={`flex-row ${message.isUser ? 'justify-end' : 'justify-start'} mb-4 px-4`}>
     <View className={`max-w-[85%] ${message.isUser ? 'items-end' : 'items-start'}`}>
       <View className={`px-4 py-3 rounded-2xl ${message.isUser
-          ? 'bg-turquoise rounded-tr-none'
-          : 'bg-teal-medium/50 border border-charcoal/20 rounded-tl-none'
+        ? 'bg-turquoise rounded-tr-none'
+        : 'bg-teal-medium/50 border border-charcoal/20 rounded-tl-none'
         }`}>
         <Text className={`text-base leading-6 ${message.isUser ? 'text-black font-medium' : 'text-gray-200'}`}>
           {message.text}
@@ -85,7 +85,7 @@ const Say = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hello! I'm PharmaBot, your specialized medical AI. Ask me about any medication and I'll extract information from our records.",
+      text: "Hello! I'm Pharma DrugFriend, your specialized medical AI. Ask me about any medication and I'll extract information from our records.",
       isUser: false,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
@@ -125,10 +125,10 @@ const Say = () => {
         isUser: false,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         medicineCard: drug ? {
-          name: drug.trade_name,
-          dose: drug.strength || 'Consult doctor',
-          frequency: drug.dosage_form || 'See packaging',
-          tag: drug.manufacturer || 'Medicine',
+          name: drug.trade_name || 'Unknown Medication',
+          dose: 'Consult doctor',
+          frequency: drug.Category || 'See packaging',
+          tag: drug.Category || 'Medicine',
         } : undefined,
       };
 
@@ -154,18 +154,19 @@ const Say = () => {
           <Ionicons name="medical" size={20} color="#2dd4bf" />
         </View>
         <View>
-          <Text className="text-white font-bold text-lg">PharmaBot</Text>
+          <Text className="text-white font-bold text-lg">DrugFriend</Text>
           <Text className="text-turquoise text-[10px] font-bold uppercase tracking-widest">Medical Intelligence</Text>
         </View>
       </View>
 
       <KeyboardAvoidingView
-        className="flex-1"
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        behavior="padding"
+        style={{ flex: 1 }}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
         <FlatList
           ref={flatListRef}
+          className="flex-1"
           data={messages}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <ChatBubble message={item} />}
@@ -179,9 +180,10 @@ const Say = () => {
               </View>
             </View>
           ) : null}
+          keyboardShouldPersistTaps="handled"
         />
 
-        <View className="p-4 bg-deep-teal/20 border-t border-charcoal/20" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : 24 }}>
+        <View className="p-4 bg-deep-teal/20 border-t border-charcoal/20" style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom + 8 : insets.bottom + 12 }}>
           <View className="flex-row items-center bg-teal-medium/40 rounded-2xl px-2 py-2 border border-charcoal/30 shadow-bubble">
             <TouchableOpacity className="w-10 h-10 rounded-full items-center justify-center mr-2">
               <Ionicons name="mic" size={22} color="#9ca3af" />
@@ -189,11 +191,11 @@ const Say = () => {
 
             <TextInput
               className="flex-1 text-white text-base py-1"
-              placeholder="Ask PharmaBot..."
+              placeholder="Ask me as your DrugFriend..."
               placeholderTextColor="#6b7280"
               value={inputText}
               onChangeText={setInputText}
-              multiline={false}
+              multiline={true}
               onSubmitEditing={handleSend}
               returnKeyType="send"
             />
