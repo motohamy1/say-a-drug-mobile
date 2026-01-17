@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   Dimensions,
@@ -16,6 +17,17 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const ORBIT_SIZE = Math.min(SCREEN_WIDTH * 0.85, 340);
 const CENTER_SIZE = ORBIT_SIZE * 0.4;
 const BUTTON_SIZE = ORBIT_SIZE * 0.18;
+
+// Category routes mapping
+const categoryRoutes: Record<string, string> = {
+  'Heart': '/heart/index',
+  'GIT': '/git/index',
+  'Fever': '/fever/index',
+  'Neuro': '/neuro/index',
+  'Skin': '/skin/index',
+  'Women': '/women/index',
+  'Lungs': '/lungs/index',
+};
 
 // Types
 type RecentInquiry = {
@@ -90,7 +102,7 @@ const SearchBar = () => {
 const CategoryPills = () => {
   const [selectedCategory, setSelectedCategory] = useState('All');
 
-  const categories = ['All', 'Prescription', 'OTC', 'Pediatric', 'Generic'];
+  // const categories = ['All', 'Prescription', 'OTC', 'Pediatric', 'Generic'];
 
   return (
     <ScrollView
@@ -98,7 +110,7 @@ const CategoryPills = () => {
       showsHorizontalScrollIndicator={false}
       contentContainerClassName="px-6 gap-3 pb-2"
     >
-      {categories.map((category) => (
+      {/* {categories.map((category) => (
         <TouchableOpacity
           key={category}
           onPress={() => setSelectedCategory(category)}
@@ -114,7 +126,7 @@ const CategoryPills = () => {
             {category}
           </Text>
         </TouchableOpacity>
-      ))}
+      ))} */}
     </ScrollView>
   );
 };
@@ -130,15 +142,25 @@ const OrbitButton = ({
   size: number;
   top: DimensionValue;
   left: DimensionValue;
-}) => (
-  <TouchableOpacity
-    className="absolute bg-teal-medium border border-white/10 items-center justify-center shadow-lg rounded-full"
-    style={{ width: size, height: size, top, left, marginTop: -size / 2, marginLeft: -size / 2 }}
-  >
-    <Ionicons name={category.icon} size={20} color={category.color} />
-    <Text className="text-[9px] font-bold text-gray-300 mt-0.5">{category.name}</Text>
-  </TouchableOpacity>
-);
+}) => {
+  const route = categoryRoutes[category.name];
+  const handlePress = () => {
+    if (route) {
+      router.push(route as any);
+    }
+  };
+
+  return (
+    <TouchableOpacity
+      onPress={handlePress}
+      className="absolute bg-teal-medium border border-white/10 items-center justify-center shadow-lg rounded-full"
+      style={{ width: size, height: size, top, left, marginTop: -size / 2, marginLeft: -size / 2 }}
+    >
+      <Ionicons name={category.icon} size={20} color={category.color} />
+      <Text className="text-[9px] font-bold text-gray-300 mt-0.5">{category.name}</Text>
+    </TouchableOpacity>
+  );
+};
 
 // Orbit Navigation Component
 const OrbitNavigation = () => {
@@ -185,7 +207,7 @@ const OrbitNavigation = () => {
           style={{ width: CENTER_SIZE, height: CENTER_SIZE }}
         >
           <Ionicons name="medkit" size={28} color="#0a1416" />
-          <Text className="text-sm font-bold text-black">Antibiotics</Text>
+          <Text className="text-sm font-bold text-black">Specialities classes</Text>
           <Text className="text-[10px] text-black/70">128 Meds</Text>
         </TouchableOpacity>
 

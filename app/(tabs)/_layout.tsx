@@ -20,7 +20,7 @@ export default function TabLayout() {
 
       }} >
       <Tabs.Screen
-        name="Say"
+        name="say"
         options={{
           title: "Drugs Area",
           tabBarIcon: ({ color, focused }) => (
@@ -33,7 +33,20 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="Index"
+        name="calculator"
+        options={{
+          title: "Dose Calc",
+          tabBarIcon: ({ color, focused }) => (
+            <Ionicons
+              name={focused ? "calculator" : "calculator-outline"}
+              color={color}
+              size={24}
+            />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="index"
         options={{
           title: "Med Center",
           tabBarIcon: ({ color, focused }) => (
@@ -46,7 +59,7 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="Profile"
+        name="profile"
         options={{
           title: "Profile",
           tabBarIcon: ({ color, focused }) => (
