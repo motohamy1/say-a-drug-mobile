@@ -12,7 +12,7 @@ if (!API_KEY) {
 }
 
 const genAI = new GoogleGenerativeAI(API_KEY || 'MISSING_KEY');
-const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
 export const aiService = {
     /**
@@ -26,16 +26,16 @@ export const aiService = {
 
         try {
             // 1. Search Supabase for relevant drug data
-            // We use a simple ILIKE search on Trade Name or Drugname for the first few words of the message
-            // or the whole message if it's short.
-            const searchTerms = message.trim().split(/\s+/).slice(0, 3).join(' ');
+            // We use the first 2-3 words of the message for a more reliable search
+            const cleanMessage = message.replace(/[^\w\s\u0600-\u06FF]/gi, '').trim();
+            const searchTerms = cleanMessage.split(/\s+/).slice(0, 2).join(' ');
 
             console.log("Debug: Searching Supabase for:", searchTerms);
 
             const { data: drugs, error: searchError } = await supabase
                 .from('drugs')
                 .select('*')
-                .or(`trade_name.ilike.%${searchTerms}%,Drugname.ilike.%${searchTerms}%,scientific_name.ilike.%${searchTerms}%`)
+                .or(`trade_name.ilike.%${searchTerms}%,Drugname.ilike.%${searchTerms}%`)
                 .limit(5);
 
             if (searchError) {
@@ -62,38 +62,38 @@ export const aiService = {
 
             // 2. Construct System Prompt
             const prompt = `
-You are a highly professional, compassionate, and expert Pharmacist AI Assistant. 
-You provide accurate medical information based on the provided database context.
+You are a direct and professional Pharmacist AI Assistant. 
+Provide concise, factual information based on the database context.
 
-### DATABASE CONTEXT (From Supabase):
+### DATABASE CONTEXT:
 ${drugContext}
 
 ### USER QUERY: "${message}"
 
 ### INSTRUCTIONS:
-1.  **Response Format**: For the primary drug discussed, you MUST start your response with these exact bullet points:
-    - trade_name: [Insert Trade Name]
-    - active ingredient: [Insert Active Ingredient(s)]
-    - use or category: [Insert Use/Category]
-    - availability: [State if available in Egypt based on the database or general knowledge for Egypt market]
+1.  **Response Format**: Be extremely direct. Avoid conversational filler (e.g., "Certainly!", "I can help with that"). 
+    Start immediately with these bullet points:
+    - trade_name: [English Name]
+    - active ingredient: [English Chemical Name]
+    - use/category: [English Category]
+    - availability: [State if in Egypt]
 
-2.  **Human-Like Interaction**: After the bullet points, provide a brief, professional explanation of the drug's purpose.
+2.  **Language & Medical Terms**: 
+    - Respond in the language used by the user (Arabic or English).
+    - **CRITICAL**: All drug names, ingredients, and medical/technical terms MUST remain in **English**, even when responding in Arabic. Only the surrounding explanatory text should be translated.
 
-3.  **Database vs General Knowledge**:
-    - If the drug information is found in the **DATABASE CONTEXT**, use it as your primary source.
-    - If the drug is NOT in the database, you MAY still provide information based on your general knowledge. However, you MUST explicitly start the explanation by saying something like: "I couldn't find this specific medication in our private database, but based on general medical knowledge..."
+3.  **Dosage & Age (CRITICAL)**:
+    - If the user asks about dosage and provides an **age**, calculate the medical dosage.
+    - Explicitly include this sentence: "This dosage is calculated based on the optimal weight for this age."
+    - If age is missing, politely ask for it before giving a dosage.
 
-4.  **Dosage Intelligence (CRITICAL)**:
-    - If the user asks about dosage but has NOT provided the patient's **age** or **weight**, you MUST NOT give a specific dosage. Instead, ask for these details in a helpful, human-like way (e.g., "To provide the most accurate and safe dosage for you, could you please tell me the patient's age and weight?").
-    - If the user HAS provided age/weight, use the most effective medical dosage calculation (pediatric or adult protocols) to provide a precise, easy-to-understand instruction. Avoid "bulk" calculations; be specific.
+4.  **Database Strategy**:
+    - Use provided DATABASE CONTEXT first.
+    - If not found, use general knowledge but start with: "Not found in database, but based on general medical knowledge (English terms only)..."
 
-5.  **Language Handling**: Always reply in the same language the user queried in (Arabic or English).
+5.  **Safety**: Include a short medical disclaimer to consult a doctor.
 
-6.  **Closing and Follow-up**: End your response by asking if the user has more questions or needs clarification, and leave the choice to them.
-
-7.  **Safety**: Always include a standard medical disclaimer reminding the user to consult a doctor.
-
-Return your professional response now.
+Return your direct response now.
             `;
 
             // 3. Call Gemini
@@ -104,8 +104,11 @@ Return your professional response now.
             const response = result.response;
             return response.text().trim();
 
-        } catch (error) {
-            console.error("AI Service Error:", error);
+        } catch (error: any) {
+            console.error("AI Service Error (Full Details):", error);
+            if (error?.message) {
+                console.error("Error Message:", error.message);
+            }
             return "I'm sorry, I'm having trouble analyzing the medical database right now. Please try again.";
         }
     },
