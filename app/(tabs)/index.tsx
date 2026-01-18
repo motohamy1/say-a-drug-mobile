@@ -20,13 +20,13 @@ const BUTTON_SIZE = ORBIT_SIZE * 0.18;
 
 // Category routes mapping
 const categoryRoutes: Record<string, string> = {
-  'Heart': '/heart/index',
-  'GIT': '/git/index',
-  'Fever': '/fever/index',
-  'Neuro': '/neuro/index',
-  'Skin': '/skin/index',
-  'Women': '/women/index',
-  'Lungs': '/lungs/index',
+  'Heart': '/heart',
+  'GIT': '/git',
+  'Fever': '/fever',
+  'Neuro': '/neuro',
+  'Skin': '/skin',
+  'Women': '/women',
+  'Lungs': '/lungs',
 };
 
 // Types

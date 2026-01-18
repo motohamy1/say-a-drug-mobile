@@ -13,7 +13,7 @@ export const drugService = {
             const { data, error } = await supabase
                 .from('drugs')
                 .select('*')
-                .or(`trade_name.ilike.%${query}%,Category.ilike.%${query}%`)
+                .ilike('Search Query', `%${query}%`)
                 .limit(1)
                 .maybeSingle();
 
@@ -37,7 +37,7 @@ export const drugService = {
             const { data, error } = await supabase
                 .from('drugs')
                 .select('*')
-                .or(`trade_name.ilike.%${query}%,Category.ilike.%${query}%`)
+                .ilike('Search Query', `%${query}%`)
                 .limit(5);
 
             if (error) {

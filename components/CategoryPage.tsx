@@ -36,6 +36,17 @@ const categories: Record<string, CategoryInfo> = {
   lungs: { name: 'Lungs', icon: 'leaf', color: '#48dbfb' },
 };
 
+// Map UI categories to DB categories
+const uiToDbCategoryMap: Record<string, string[]> = {
+  'Heart': ['Painkiller'], // Placeholder mapping
+  'GIT': ['Painkiller'],
+  'Fever': ['Painkiller'],
+  'Neuro': ['Vitamin'],
+  'Skin': ['Antifungal'],
+  'Women': ['Vitamin'],
+  'Lungs': ['Antibiotic'],
+};
+
 export const CategoryPage: React.FC<CategoryPageProps> = ({
   categoryName,
   categoryIcon,
@@ -53,13 +64,19 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
   const fetchDrugs = async () => {
     setLoading(true);
     try {
-      // Fetch drugs by category using the searchDrugs function
-      const data = await drugService.searchDrugs(categoryName);
-      // Filter to only get exact category matches
-      const filteredDrugs = data.filter(
-        (drug) => drug.Category?.toLowerCase() === categoryName.toLowerCase()
-      );
-      setDrugs(filteredDrugs);
+      const dbCategories = uiToDbCategoryMap[categoryName] || [categoryName];
+      let allDrugs: Drug[] = [];
+
+      for (const dbCat of dbCategories) {
+        const data = await drugService.searchDrugs(dbCat);
+        allDrugs = [...allDrugs, ...data];
+      }
+
+      // Remove duplicates and filter
+      const uniqueDrugs = Array.from(new Set(allDrugs.map(d => d.id)))
+        .map(id => allDrugs.find(d => d.id === id)!);
+
+      setDrugs(uniqueDrugs);
     } catch (error) {
       console.error('Error fetching drugs:', error);
       setDrugs([]);
@@ -145,9 +162,10 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({
           contentContainerStyle={{
             padding: 24,
             paddingBottom: 100,
+            gap: 16,
           }}
           columnWrapperStyle={{
-            gap: 12,
+            gap: 16,
           }}
           showsVerticalScrollIndicator={false}
         />

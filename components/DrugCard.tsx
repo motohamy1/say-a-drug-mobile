@@ -1,7 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { TouchableOpacity, View } from 'react-native';
-import { Text } from 'react-native';
+import { Text, TouchableOpacity, View } from 'react-native';
 import { Drug } from '../services/drugService';
 
 type DrugCardProps = {
@@ -10,7 +9,7 @@ type DrugCardProps = {
   accentColor?: string;
 };
 
-const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
+export const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   Heart: 'heart',
   GIT: 'restaurant',
   Fever: 'thermometer',
@@ -20,7 +19,7 @@ const categoryIcons: Record<string, keyof typeof Ionicons.glyphMap> = {
   Lungs: 'leaf',
 };
 
-const categoryColors: Record<string, string> = {
+export const categoryColors: Record<string, string> = {
   Heart: '#ff6b6b',
   GIT: '#feca57',
   Fever: '#54a0ff',
@@ -45,7 +44,7 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onPress, accentColor }
   return (
     <TouchableOpacity
       onPress={onPress}
-      className="w-[48%] bg-teal-medium rounded-2xl border border-white/5 p-3 shadow-sm"
+      className="flex-1 bg-teal-medium rounded-2xl border border-white/5 p-3 shadow-sm"
       activeOpacity={0.7}
     >
       {/* Icon area */}

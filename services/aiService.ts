@@ -35,7 +35,7 @@ export const aiService = {
             const { data: drugs, error: searchError } = await supabase
                 .from('drugs')
                 .select('*')
-                .or(`trade_name.ilike.%${searchTerms}%,Drugname.ilike.%${searchTerms}%`)
+                .ilike('Search Query', `%${searchTerms}%`)
                 .limit(5);
 
             if (searchError) {
@@ -71,29 +71,27 @@ ${drugContext}
 ### USER QUERY: "${message}"
 
 ### INSTRUCTIONS:
-1.  **Response Format**: Be extremely direct. Avoid conversational filler (e.g., "Certainly!", "I can help with that"). 
-    Start immediately with these bullet points:
-    - trade_name: [English Name]
-    - active ingredient: [English Chemical Name]
-    - use/category: [English Category]
-    - availability: [State if in Egypt]
+1.  **Response Strategy**: 
+    - You are a medical assistant. Start with a polite greeting or helpful introduction in the user's language.
+    - FOR ANY DRUG INFO OR MEDICAL DATA, you MUST wrap it in [[DRUG_BLOCK]] tags.
+    - You can have multiple [[DRUG_BLOCK]] sections.
 
-2.  **Language & Medical Terms**: 
-    - Respond in the language used by the user (Arabic or English).
-    - **CRITICAL**: All drug names, ingredients, and medical/technical terms MUST remain in **English**, even when responding in Arabic. Only the surrounding explanatory text should be translated.
+2.  **Structured Data Block**:
+    [[DRUG_BLOCK]]
+    trade_name:: [Name] | [Arabic Name]
+    active_ingredient:: [Ingredient] | [Arabic Ingredient]
+    form:: [Form] | [Arabic Form]
+    category:: [Category] | [Arabic Category]
+    availability:: [Status] | [Arabic Status]
+    instructions:: [Usage] | [Arabic Usage]
+    [[DRUG_BLOCK]]
 
-3.  **Dosage & Age (CRITICAL)**:
-    - If the user asks about dosage and provides an **age**, calculate the medical dosage.
-    - Explicitly include this sentence: "This dosage is calculated based on the optimal weight for this age."
-    - If age is missing, politely ask for it before giving a dosage.
+3.  **Tagging**: Use double colons :: for labels and a pipe | to separate English and Arabic values. Use exactly these labels.
 
-4.  **Database Strategy**:
-    - Use provided DATABASE CONTEXT first.
-    - If not found, use general knowledge but start with: "Not found in database, but based on general medical knowledge (English terms only)..."
+4.  **Safety**: End your response with a disclaimer tagged as:
+    ● disclaimer:: [Safety Warning] | [Arabic Warning]
 
-5.  **Safety**: Include a short medical disclaimer to consult a doctor.
-
-Return your direct response now.
+Return your response now.
             `;
 
             // 3. Call Gemini
