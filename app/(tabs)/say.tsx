@@ -10,7 +10,9 @@ import {
   TouchableOpacity,
   View
 } from 'react-native';
+import Animated, { Layout, ZoomIn } from 'react-native-reanimated';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { categoryColors, categoryIcons } from '../../components/DrugCard';
 import { aiService } from '../../services/aiService';
 import { drugService } from '../../services/drugService';
 
@@ -30,55 +32,188 @@ type MedicineCardData = {
   tag: string;
 };
 
+// AI Response Card Component
+const AiResponseCard: React.FC<{ text: string; delay?: number; isGrid?: boolean }> = ({ text, delay = 0, isGrid = false }) => {
+  const lines = text.split('\n').filter(line => line.includes('::'));
+
+  if (lines.length === 0) return null;
+
+  // Extract data for header
+  const data: Record<string, { english: string; arabic: string }> = {};
+  lines.forEach(line => {
+    const [label, values] = line.replace(/^[●\-\s]+/, '').split('::');
+    if (label && values) {
+      const [english, arabic] = values.split('|').map(v => v.trim());
+      data[label.trim().toLowerCase()] = { english, arabic };
+    }
+  });
+
+  const category = data['category']?.english || 'More';
+  const icon = categoryIcons[category] || 'medkit';
+  const color = categoryColors[category] || '#2dd4bf';
+  const tradeName = data['trade_name']?.english || 'Unknown Drug';
+
+  return (
+    <Animated.View
+      entering={ZoomIn.duration(500).delay(delay).springify()}
+      layout={Layout.springify()}
+      style={{ width: isGrid ? '48%' : '100%' }}
+      className="bg-teal-medium rounded-2xl border border-white/5 p-3 shadow-medicine-card mb-2"
+    >
+      {/* Icon Area - Matching DrugCard */}
+      <View className="w-10 h-10 rounded-full bg-teal-dark items-center justify-center mb-2">
+        <Ionicons name={icon} size={18} color={color} />
+      </View>
+
+      {/* Main Content Area */}
+      <View className="gap-2">
+        <Text className="text-white text-sm font-semibold mb-1" numberOfLines={isGrid ? 2 : undefined}>
+          {tradeName}
+        </Text>
+
+        {!isGrid && (
+          <View className="gap-3 mt-1">
+            {Object.entries(data).map(([key, val], idx) => {
+              if (key === 'trade_name' || key === 'category') return null;
+              const cleanLabel = key.replace(/_/g, ' ');
+
+              return (
+                <View key={idx} className="flex-col gap-0.5">
+                  <Text className="text-gray-muted text-[10px] font-bold uppercase tracking-tighter">
+                    {cleanLabel}
+                  </Text>
+                  <View className="flex-col">
+                    <Text className="text-green-400 text-xs font-semibold">{val.english}</Text>
+                    {val.arabic && (
+                      <Text className="text-green-300 text-xs font-medium text-right font-arabic">
+                        {val.arabic}
+                      </Text>
+                    )}
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {isGrid && data['form'] && (
+          <Text className="text-turquoise text-[10px] font-medium" numberOfLines={1}>
+            {data['form'].english}
+          </Text>
+        )}
+      </View>
+    </Animated.View>
+  );
+};
+
 // Medicine Card Component
-const MedicineCard: React.FC<{ data: MedicineCardData }> = ({ data }) => (
-  <View className="bg-medicine-card rounded-2xl overflow-hidden shadow-card mt-3 mb-1 border border-charcoal/30">
-    <View className="h-32 bg-gradient-to-b from-teal-medium to-medicine-card relative justify-center items-center">
-      <View className="w-16 h-24 rounded-t-xl rounded-b-3xl bg-gradient-to-b from-gold-light/20 to-gold-warm/5 border-2 border-gold/40 items-center justify-center">
-        <Ionicons name="flask-outline" size={32} color="#ffd33d" opacity={0.5} />
-      </View>
-    </View>
-    <View className="p-4">
-      <View className="flex-row items-center justify-between mb-3">
-        <View className="flex-row items-center gap-2">
-          <Text className="text-white text-lg font-semibold">{data.name}</Text>
-        </View>
-        <View className="px-2 py-1 bg-turquoise/20 rounded-full">
-          <Text className="text-turquoise text-[10px] font-bold uppercase">{data.tag}</Text>
-        </View>
-      </View>
-      <View className="h-px bg-charcoal/30 mb-3" />
-      <View className="bg-teal-medium/30 rounded-xl p-3 flex-row items-center gap-3">
-        <View className="w-8 h-8 rounded-full bg-cyan/20 items-center justify-center">
-          <Ionicons name="medkit-outline" size={18} color="#22d3ee" />
-        </View>
-        <View>
-          <Text className="text-gray-muted text-[10px] uppercase">Dosage</Text>
-          <Text className="text-cyan-bright font-bold">{data.dose}</Text>
-          <Text className="text-gray-muted text-[10px]">{data.frequency}</Text>
-        </View>
-      </View>
-    </View>
-  </View>
-);
+// const MedicineCard: React.FC<{ data: MedicineCardData }> = ({ data }) => (
+//   <Animated.View
+//     entering={FadeInUp.delay(200).duration(400)}
+//     className="bg-medicine-card rounded-2xl overflow-hidden shadow-card mt-3 mb-1 border border-charcoal/30 flex-row"
+//   >
+//     <View className="w-24 bg-gradient-to-b from-teal-medium to-medicine-card justify-center items-center p-3">
+//       <View className="w-12 h-18 rounded-t-lg rounded-b-2xl bg-gradient-to-b from-gold-light/20 to-gold-warm/5 border-2 border-gold/40 items-center justify-center">
+//         <Ionicons name="flask-outline" size={24} color="#ffd33d" opacity={0.5} />
+//       </View>
+//     </View>
+//     <View className="flex-1 p-4">
+//       <View className="flex-row items-center justify-between mb-2">
+//         <Text className="text-white text-base font-semibold flex-1 mr-2">{data.name}</Text>
+//         <View className="px-2 py-0.5 bg-turquoise/20 rounded-full">
+//           <Text className="text-turquoise text-[8px] font-bold uppercase">{data.tag}</Text>
+//         </View>
+//       </View>
+//       <View className="h-px bg-charcoal/30 mb-2" />
+//       <View className="bg-teal-medium/30 rounded-xl p-2 flex-row items-center gap-2">
+//         <View className="w-6 h-6 rounded-full bg-cyan/20 items-center justify-center">
+//           <Ionicons name="medkit-outline" size={14} color="#22d3ee" />
+//         </View>
+//         <View>
+//           <Text className="text-cyan-bright text-xs font-bold">{data.dose}</Text>
+//           <Text className="text-gray-muted text-[9px]">{data.frequency}</Text>
+//         </View>
+//       </View>
+//     </View>
+//   </Animated.View>
+// );
 
 // Chat Bubble Component
-const ChatBubble: React.FC<{ message: Message }> = ({ message }) => (
-  <View className={`flex-row ${message.isUser ? 'justify-end' : 'justify-start'} mb-4 px-4`}>
-    <View className={`max-w-[85%] ${message.isUser ? 'items-end' : 'items-start'}`}>
-      <View className={`px-4 py-3 rounded-2xl ${message.isUser
-        ? 'bg-turquoise rounded-tr-none'
-        : 'bg-teal-medium/50 border border-charcoal/20 rounded-tl-none'
-        }`}>
-        <Text className={`text-base leading-6 ${message.isUser ? 'text-black font-medium' : 'text-gray-200'}`}>
-          {message.text}
-        </Text>
+const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
+  const isAi = !message.isUser;
+
+  if (isAi) {
+    // 1. Debug: Log the AI response to help identify formatting issues
+    console.log("Raw AI Response:", message.text);
+
+    // 2. Identify segments
+    // Split by the explicit block tag if present
+    let rawSegments = message.text.split('[[DRUG_BLOCK]]').map(s => s.trim()).filter(s => s.length > 0);
+
+    // Fallback: If no blocks but we see structural markers, treat the whole thing as one block
+    if (rawSegments.length === 1 && !message.text.includes('[[DRUG_BLOCK]]') && message.text.includes('::')) {
+      // If it contains a trade name, it's likely a drug card that missed its wrapper
+      if (message.text.includes('trade_name::')) {
+        rawSegments = [message.text];
+      }
+    }
+
+    const structuredBlocks = rawSegments.filter(s => s.includes('trade_name::'));
+    const isGrid = structuredBlocks.length > 1;
+
+    return (
+      <View className="mb-4 px-4 w-full flex-row flex-wrap justify-between">
+        {rawSegments.map((segment, index) => {
+          const isStructured = segment.includes('trade_name::');
+
+          if (!isStructured) {
+            // Conversational text (bubble) - Use w-full to prevent cards from sitting next to it
+            const cleanText = segment.split('disclaimer::')[0].trim();
+            if (cleanText.length === 0) return null;
+
+            return (
+              <View key={`text-${index}`} className="w-full flex-row justify-start mb-3">
+                <View className="bg-teal-medium/50 border border-charcoal/20 px-4 py-3 rounded-2xl rounded-tl-none max-w-[90%]">
+                  <Text className="text-base leading-6 text-gray-200">{cleanText}</Text>
+                </View>
+              </View>
+            );
+          } else {
+            // Structured drug info (card)
+            return (
+              <AiResponseCard
+                key={`card-${index}`}
+                text={segment}
+                delay={index * 150}
+                isGrid={isGrid}
+              />
+            );
+          }
+        })}
+
+        {/* Render disclaimer at the very bottom if it exists anywhere in the raw text */}
+        {message.text.includes('disclaimer::') && (
+          <View className="w-full mt-2 px-1">
+            <Text className="text-gray-muted text-[10px] italic">
+              {message.text.split('disclaimer::')[1]?.split('|')[0]?.trim()}
+            </Text>
+          </View>
+        )}
       </View>
-      <Text className="text-gray-muted text-[10px] mt-1 mx-1">{message.timestamp}</Text>
-      {message.medicineCard && <MedicineCard data={message.medicineCard} />}
+    );
+  }
+
+  // Fallback for user messages
+  return (
+    <View className="flex-row justify-end mb-4 px-4">
+      <View className="max-w-[90%] items-end">
+        <View className="bg-turquoise px-4 py-3 rounded-2xl rounded-tr-none shadow-sm">
+          <Text className="text-base leading-6 text-black font-medium">{message.text}</Text>
+        </View>
+      </View>
     </View>
-  </View>
-);
+  );
+};
 
 const Say = () => {
   const insets = useSafeAreaInsets();

@@ -1,8 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { DRUG_DATABASE } from '../../constants/drugDatabase';
 import { calculateDose } from '../../services/calculatorService';
+import { Drug as DbDrug, drugService } from '../../services/drugService';
 import { WeightUnit } from '../../types/calculator';
 
 export default function CalculatorScreen() {
@@ -12,15 +13,71 @@ export default function CalculatorScreen() {
     const [ageYears, setAgeYears] = useState<string>('');
     const [ageMonths, setAgeMonths] = useState<string>('');
 
+    // Search State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState<DbDrug[]>([]);
+    const [isSearching, setIsSearching] = useState(false);
+    const [showResults, setShowResults] = useState(false);
+
     // Drug Selection
     const [selectedDrugId, setSelectedDrugId] = useState<string>(DRUG_DATABASE[0].id);
     const [selectedIndicationIdx, setSelectedIndicationIdx] = useState<number>(0);
     const [selectedFormulationIdx, setSelectedFormulationIdx] = useState<number>(0);
 
+    // --- Effects ---
+    React.useEffect(() => {
+        const delayDebounceFn = setTimeout(async () => {
+            if (searchQuery.length > 1) {
+                setIsSearching(true);
+                const results = await drugService.searchDrugs(searchQuery);
+                setSearchResults(results);
+                setIsSearching(false);
+                setShowResults(true);
+            } else {
+                setSearchResults([]);
+                setShowResults(false);
+            }
+        }, 300);
+
+        return () => clearTimeout(delayDebounceFn);
+    }, [searchQuery]);
+
     // --- Derived Data ---
     const selectedDrug = useMemo(() =>
         DRUG_DATABASE.find(d => d.id === selectedDrugId) || DRUG_DATABASE[0],
         [selectedDrugId]);
+
+    // --- Handlers ---
+    const handleSelectDbDrug = (dbDrug: DbDrug) => {
+        // Try to map to local DB by generic name or trade name
+        // Supabase uses 'active_ingredients' and 'Category'
+        const drugName = dbDrug.trade_name || '';
+
+        // Ensure activeIng is a string for the comparison
+        let activeIng = '';
+        if (Array.isArray(dbDrug.active_ingredients)) {
+            activeIng = dbDrug.active_ingredients.join(', ');
+        } else if (typeof dbDrug.active_ingredients === 'string') {
+            activeIng = dbDrug.active_ingredients;
+        }
+
+        const genericMatch = DRUG_DATABASE.find(d =>
+            activeIng.toLowerCase().includes(d.genericName.toLowerCase()) ||
+            d.genericName.toLowerCase().includes(activeIng.toLowerCase())
+        );
+
+        if (genericMatch) {
+            setSelectedDrugId(genericMatch.id);
+            setSelectedIndicationIdx(0);
+            setSelectedFormulationIdx(0);
+        } else {
+            // Fallback: If no rules, we could show a warning or keep current selection
+            console.warn("No dosage rules found for", drugName);
+        }
+
+        setSearchQuery(drugName);
+        setShowResults(false);
+    };
 
     // Calculate Result
     const result = useMemo(() => {
@@ -137,8 +194,55 @@ export default function CalculatorScreen() {
                         <Text style={styles.cardTitle}>Medication</Text>
                     </View>
 
+                    {/* Search Field */}
+                    <Text style={styles.label}>Search Drug Database</Text>
+                    <View style={styles.searchContainer}>
+                        <View style={styles.searchInputWrapper}>
+                            <Ionicons name="search" size={18} color="#4b5563" style={styles.searchIcon} />
+                            <TextInput
+                                placeholder="Search e.g. Panadol, Augmentin..."
+                                placeholderTextColor="#4b5563"
+                                value={searchQuery}
+                                onChangeText={(text) => {
+                                    setSearchQuery(text);
+                                    if (text.length === 0) setShowResults(false);
+                                }}
+                                style={styles.searchInput}
+                                onFocus={() => searchQuery.length > 1 && setShowResults(true)}
+                            />
+                            {isSearching && <ActivityIndicator size="small" color="#2dd4bf" style={{ marginRight: 10 }} />}
+                        </View>
+
+                        {showResults && searchResults.length > 0 && (
+                            <View style={styles.resultsDropdown}>
+                                {searchResults.map((item) => {
+                                    const activeIng = Array.isArray(item.active_ingredients)
+                                        ? item.active_ingredients.join(', ')
+                                        : item.active_ingredients || '';
+                                    const category = item.Category || '';
+
+                                    return (
+                                        <TouchableOpacity
+                                            key={item.id}
+                                            onPress={() => handleSelectDbDrug(item)}
+                                            style={styles.resultItem}
+                                        >
+                                            <View style={styles.flex1}>
+                                                <Text style={styles.resultName}>{item.trade_name}</Text>
+                                                <Text style={styles.resultDetails} numberOfLines={1}>
+                                                    {activeIng || category}
+                                                </Text>
+                                            </View>
+                                            <Ionicons name="add-circle-outline" size={20} color="#2dd4bf" />
+                                        </TouchableOpacity>
+                                    );
+                                })}
+                            </View>
+                        )}
+                    </View>
+
                     {/* Drug Selection */}
-                    <Text style={styles.label}>Select Drug</Text>
+                    <Text style={styles.label}>Quick Select (Local)</Text>
                     <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.horizontalScroll}>
                         {DRUG_DATABASE.map((drug) => (
                             <TouchableOpacity
@@ -576,5 +680,63 @@ const styles = StyleSheet.create({
         textAlign: 'center',
         lineHeight: 16,
         marginTop: 4,
+    },
+    // --- Search Styles ---
+    searchContainer: {
+        marginBottom: 16,
+        zIndex: 10,
+    },
+    searchInputWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: '#0a1416',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#1a2e31',
+        paddingHorizontal: 12,
+    },
+    searchIcon: {
+        marginRight: 8,
+    },
+    searchInput: {
+        flex: 1,
+        color: 'white',
+        paddingVertical: 12,
+        fontSize: 14,
+    },
+    resultsDropdown: {
+        position: 'absolute',
+        top: 52,
+        left: 0,
+        right: 0,
+        backgroundColor: '#1a2e31',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#2dd4bf',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 5,
+        maxHeight: 200,
+        overflow: 'hidden',
+    },
+    resultItem: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        padding: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#0a1416',
+    },
+    resultName: {
+        color: 'white',
+        fontSize: 14,
+        fontWeight: 'bold',
+        marginBottom: 2,
+    },
+    resultDetails: {
+        color: '#9ca3af',
+        fontSize: 12,
     },
 });
