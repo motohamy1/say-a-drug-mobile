@@ -1,4 +1,5 @@
 import { Ionicons } from '@expo/vector-icons';
+import { useLocalSearchParams } from 'expo-router';
 import React, { useMemo, useState } from 'react';
 import { ActivityIndicator, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { DRUG_DATABASE } from '../../constants/drugDatabase';
@@ -24,7 +25,16 @@ export default function CalculatorScreen() {
     const [selectedIndicationIdx, setSelectedIndicationIdx] = useState<number>(0);
     const [selectedFormulationIdx, setSelectedFormulationIdx] = useState<number>(0);
 
+    const params = useLocalSearchParams();
+
     // --- Effects ---
+    // Handle incoming drug search from other pages (like Chat)
+    React.useEffect(() => {
+        if (params.drug) {
+            setSearchQuery(params.drug as string);
+        }
+    }, [params.drug]);
+
     React.useEffect(() => {
         const delayDebounceFn = setTimeout(async () => {
             if (searchQuery.length > 1) {

@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
+import { useUserProfile } from '../../hooks/useUserProfile';
 
 // Types
 type StatCard = {
@@ -49,39 +50,62 @@ const TopAppBar = () => (
 );
 
 // Profile Header Component
-const ProfileHeader = () => (
-  <View className="flex-col items-center p-6 gap-6 w-full">
-    <View className="relative">
-      {/* Avatar Glow */}
-      <View className="absolute inset-0 bg-turquoise/30 blur-xl rounded-full scale-110" />
+const ProfileHeader = ({ profile, loading }: { profile: any; loading: boolean }) => {
+  const displayName = profile?.full_name || profile?.username || 'User';
+  const memberSince = profile?.updated_at 
+    ? new Date(profile.updated_at).getFullYear().toString()
+    : new Date().getFullYear().toString();
 
-      {/* Avatar Container */}
-      <View className="relative w-32 h-32 rounded-full border-4 border-teal-medium shadow-xl items-center justify-center bg-teal-medium">
-        <Ionicons name="person" size={60} color="#9ca3af" />
-      </View>
+  return (
+    <View className="flex-col items-center p-6 gap-6 w-full">
+      <View className="relative">
+        {/* Avatar Glow */}
+        <View className="absolute inset-0 bg-turquoise/30 blur-xl rounded-full scale-110" />
 
-      {/* Online/AI Active Indicator */}
-      <View className="absolute bottom-1 right-1 w-6 h-6 bg-turquoise rounded-full border-4 border-background items-center justify-center">
-        <Ionicons name="flash" size={10} color="#0a1416" />
-      </View>
-    </View>
+        {/* Avatar Container */}
+        {profile?.avatar_url ? (
+          <View className="relative w-32 h-32 rounded-full border-4 border-teal-medium shadow-xl overflow-hidden bg-teal-medium">
+            <View className="w-full h-full bg-teal-medium flex items-center justify-center">
+              <Text className="text-white text-4xl font-bold">
+                {displayName.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <View className="relative w-32 h-32 rounded-full border-4 border-teal-medium shadow-xl items-center justify-center bg-teal-medium">
+            <Text className="text-white text-4xl font-bold">
+              {loading ? '?' : displayName.charAt(0).toUpperCase()}
+            </Text>
+          </View>
+        )}
 
-    <View className="flex-col items-center gap-1">
-      <View className="flex-row items-center gap-2">
-        <Text className="text-2xl font-bold leading-tight text-white">Jane Doe</Text>
-        <View className="px-2 py-0.5 rounded-full bg-turquoise/20 border border-turquoise/20">
-          <Text className="text-turquoise text-[10px] font-bold">PRO</Text>
+        {/* Online/AI Active Indicator */}
+        <View className="absolute bottom-1 right-1 w-6 h-6 bg-turquoise rounded-full border-4 border-background items-center justify-center">
+          <Ionicons name="flash" size={10} color="#0a1416" />
         </View>
       </View>
-      <Text className="text-gray-muted text-sm font-medium">Member since 2023</Text>
-    </View>
 
-    <TouchableOpacity className="w-full max-w-[200px] h-11 rounded-full bg-teal-medium border border-white/10 flex-row items-center justify-center shadow-sm">
-      <Ionicons name="create-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
-      <Text className="text-sm font-bold text-white">Edit Profile</Text>
-    </TouchableOpacity>
-  </View>
-);
+      <View className="flex-col items-center gap-1">
+        <View className="flex-row items-center gap-2">
+          <Text className="text-2xl font-bold leading-tight text-white">
+            {loading ? 'Loading...' : displayName}
+          </Text>
+          <View className="px-2 py-0.5 rounded-full bg-turquoise/20 border border-turquoise/20">
+            <Text className="text-turquoise text-[10px] font-bold">PRO</Text>
+          </View>
+        </View>
+        <Text className="text-gray-muted text-sm font-medium">
+          {loading ? '' : `Member since ${memberSince}`}
+        </Text>
+      </View>
+
+      <TouchableOpacity className="w-full max-w-[200px] h-11 rounded-full bg-teal-medium border border-white/10 flex-row items-center justify-center shadow-sm">
+        <Ionicons name="create-outline" size={18} color="#fff" style={{ marginRight: 8 }} />
+        <Text className="text-sm font-bold text-white">Edit Profile</Text>
+      </TouchableOpacity>
+    </View>
+  );
+};
 
 // Stat Card Component
 const StatCard = ({ stat }: { stat: StatCard }) => (
@@ -256,6 +280,7 @@ const BottomNavigation = () => (
 
 // Main Profile Component
 const Profile = () => {
+  const { profile, loading } = useUserProfile();
   const [voiceOutput, setVoiceOutput] = useState(true);
 
   // My Health menu items
@@ -342,7 +367,7 @@ const Profile = () => {
         stickyHeaderIndices={[0]}
       >
         <TopAppBar />
-        <ProfileHeader />
+        <ProfileHeader profile={profile} loading={loading} />
         <StatsSection />
         <MenuSection title="My Health" items={healthItems} />
         <MenuSection title="AI Settings" icon="sparkles" items={aiItems} onToggle={handleToggle} />

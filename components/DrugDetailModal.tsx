@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useEffect } from 'react';
 import {
+  Animated,
   Dimensions,
   Modal,
   Pressable,
@@ -8,7 +9,6 @@ import {
   Text,
   TouchableOpacity,
   View,
-  Animated,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Drug } from '../services/drugService';
@@ -44,12 +44,12 @@ export const DrugDetailModal: React.FC<DrugDetailModalProps> = ({ drug, visible,
 
   if (!drug) return null;
 
-  const displayName = drug.trade_name || drug.Drugname || 'Unknown Drug';
-  const scientificName = drug.scientific_name;
+  const displayName = drug.Trade_name || drug.trade_name || drug.Drugname || 'Unknown Drug';
+  const scientificName = drug.scientific_name || drug.Active_ingredient;
   const description = drug.description;
   const price = drug.price ?? drug.Price;
   const manufacturer = drug.manufacturer || drug.Company;
-  const activeIngredients = drug.active_ingredients;
+  const activeIngredients = drug.Active_ingredient ? [drug.Active_ingredient] : drug.active_ingredients;
   const dosageForm = drug.dosage_form || drug.Form;
   const strength = drug.strength;
 
@@ -144,7 +144,7 @@ export const DrugDetailModal: React.FC<DrugDetailModalProps> = ({ drug, visible,
                 <View className="mb-4">
                   <Text className="text-xs text-gray-muted uppercase mb-2">Active Ingredients</Text>
                   <View className="flex flex-wrap gap-2">
-                    {activeIngredients.map((ingredient, index) => (
+                    {activeIngredients.map((ingredient: string, index: number) => (
                       <View
                         key={index}
                         className="px-3 py-1.5 bg-teal-dark rounded-xl border border-white/5"

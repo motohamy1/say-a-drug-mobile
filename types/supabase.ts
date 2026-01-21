@@ -48,8 +48,10 @@ export interface Database {
                     id: string
                     created_at: string
                     trade_name: string | null
+                    "Trade_name": string | null
                     "Drugname": string | null
                     scientific_name: string | null
+                    "Active_ingredient": string | null
                     price: number | null
                     "Price": number | null
                     currency: string
@@ -149,6 +151,7 @@ export interface Database {
                     }
                 ]
             }
+            drug_database: Database['public']['Tables']['drugs'],
         }
         Views: {
             [_ in never]: never

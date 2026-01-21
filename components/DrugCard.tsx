@@ -34,8 +34,8 @@ export const DrugCard: React.FC<DrugCardProps> = ({ drug, onPress, accentColor }
   const icon = categoryIcons[category] || 'medkit';
   const color = accentColor || categoryColors[category] || '#2dd4bf';
 
-  // Get display name (prefer trade_name, fallback to Drugname)
-  const displayName = drug.trade_name || drug.Drugname || 'Unknown Drug';
+  // Get display name (prefer Trade_name, fallback to trade_name or Drugname)
+  const displayName = drug.Trade_name || drug.trade_name || drug.Drugname || 'Unknown Drug';
 
   // Get price to display
   const price = drug.price ?? drug.Price;
