@@ -41,7 +41,7 @@ export const drugService = {
             const { data, error } = await supabase
                 .from('drug_database')
                 .select('*')
-                .or(`Trade_name.ilike.%${cleanQuery}%,Active_ingredient.ilike.%${cleanQuery}%`)
+                .or(`Trade_name.ilike.%${cleanQuery}%,Active_ingredient.ilike.%${cleanQuery}%,trade_name.ilike.%${cleanQuery}%`)
                 .limit(5);
 
             if (error) {
@@ -53,7 +53,11 @@ export const drugService = {
             if ((!data || data.length === 0) && cleanQuery.includes(' ')) {
                 const keywords = cleanQuery.split(/\s+/).filter(k => k.length > 2);
                 if (keywords.length > 0) {
-                    const orConditions = keywords.map(kw => `Trade_name.ilike.%${kw}%,Active_ingredient.ilike.%${kw}%`).join(',');
+                    const columns = ['Trade_name', 'Active_ingredient', 'trade_name'];
+                    const orConditions = keywords.flatMap(kw =>
+                        columns.map(col => `${col}.ilike.%${kw}%`)
+                    ).join(',');
+
                     const { data: broaderData, error: broaderError } = await supabase
                         .from('drug_database')
                         .select('*')

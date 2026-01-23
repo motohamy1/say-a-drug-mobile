@@ -9,7 +9,7 @@ const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 async function checkCategories() {
     const { data, error } = await supabase
-        .from('drugs')
+        .from('drug_database')
         .select('Category')
         .limit(100);
 

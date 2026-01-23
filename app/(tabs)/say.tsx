@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Dimensions,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   Text,
@@ -283,12 +284,24 @@ const Say = () => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordingLevel, setRecordingLevel] = useState(0);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
+  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
   const recordingRef = useRef<Audio.Recording | null>(null);
 
   useEffect(() => {
+    const keyboardShowListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
+      () => setIsKeyboardVisible(true)
+    );
+    const keyboardHideListener = Keyboard.addListener(
+      Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
+      () => setIsKeyboardVisible(false)
+    );
+
     return () => {
+      keyboardShowListener.remove();
+      keyboardHideListener.remove();
       if (recordingRef.current) {
         recordingRef.current.stopAndUnloadAsync();
       }
@@ -438,7 +451,7 @@ const Say = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background" edges={['top']}>
+    <SafeAreaView className="flex-1 bg-background">
       {/* Header */}
       <View className="flex-row items-center justify-between px-6 py-4 border-b border-charcoal/30 bg-deep-teal/40">
         <View className="flex-row items-center">
@@ -463,51 +476,51 @@ const Say = () => {
         )}
       </View>
 
-      <View className="flex-1">
-        {/* Chat List */}
-        <View className="flex-1 relative">
-          <FlatList
-            ref={flatListRef}
-            className="flex-1"
-            data={messages}
-            keyExtractor={(item) => item.id}
-            renderItem={({ item }) => <ChatBubble message={item} />}
-            contentContainerStyle={{
-              paddingVertical: 20,
-              paddingBottom: 20
-            }}
-            onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-            keyboardShouldPersistTaps="handled"
-          />
-        </View>
+      {/* Chat List */}
+      <FlatList
+        ref={flatListRef}
+        className="flex-1"
+        data={messages}
+        keyExtractor={(item) => item.id}
+        renderItem={({ item }) => <ChatBubble message={item} />}
+        contentContainerStyle={{
+          paddingVertical: 20,
+          flexGrow: 1
+        }}
+        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+      />
 
-        {/* Interaction Controls */}
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
-          className="bg-background/95 border-t border-charcoal/20"
-        >
-          {/* Voice Control Row */}
-          <View className="items-center pb-6 pt-4">
-            <TouchableOpacity
-              onPressIn={startRecording}
-              onPressOut={stopRecording}
-              activeOpacity={0.9}
-            >
-              <VoiceOrb
-                isRecording={isRecording}
-                isProcessing={isProcessingVoice}
-                level={recordingLevel}
-              />
-            </TouchableOpacity>
+      {/* Interaction Controls */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+      >
+        <View className="bg-background/95 border-t border-charcoal/20" style={{ paddingBottom: insets.bottom }}>
+          {/* Voice Control Row - Hidden when keyboard is open to save space */}
+          {!isKeyboardVisible && (
+            <View className="items-center pb-6 pt-4">
+              <TouchableOpacity
+                onPressIn={startRecording}
+                onPressOut={stopRecording}
+                activeOpacity={0.9}
+              >
+                <VoiceOrb
+                  isRecording={isRecording}
+                  isProcessing={isProcessingVoice}
+                  level={recordingLevel}
+                />
+              </TouchableOpacity>
 
-            <Text className="text-turquoise/60 font-medium mt-4 uppercase tracking-[4px] text-[10px]">
-              {isRecording ? 'Listening...' : isProcessingVoice ? 'Thinking...' : 'Tap and Hold to Speak'}
-            </Text>
-          </View>
+              <Text className="text-turquoise/60 font-medium mt-4 uppercase tracking-[4px] text-[10px]">
+                {isRecording ? 'Listening...' : isProcessingVoice ? 'Thinking...' : 'Hold to Speak'}
+              </Text>
+            </View>
+          )}
 
           {/* Text Input Row */}
-          <View className="px-4 pb-6">
+          <View className={`px-4 ${isKeyboardVisible ? 'py-3' : 'pb-6'}`}>
             <View className="flex-row items-center bg-teal-medium/30 rounded-2xl px-2 py-1.5 border border-charcoal/30">
               <TextInput
                 className="flex-1 text-white text-base py-1 px-3"
@@ -526,8 +539,8 @@ const Say = () => {
               </TouchableOpacity>
             </View>
           </View>
-        </KeyboardAvoidingView>
-      </View>
+        </View>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 };
