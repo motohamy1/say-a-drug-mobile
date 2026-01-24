@@ -292,7 +292,13 @@ const Say = () => {
   useEffect(() => {
     const keyboardShowListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillShow' : 'keyboardDidShow',
-      () => setIsKeyboardVisible(true)
+      (e) => {
+        setIsKeyboardVisible(true);
+        // Auto-scroll to bottom when keyboard appears with more offset
+        setTimeout(() => {
+          flatListRef.current?.scrollToEnd({ animated: true });
+        }, 200);
+      }
     );
     const keyboardHideListener = Keyboard.addListener(
       Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide',
@@ -490,54 +496,65 @@ const Say = () => {
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="interactive"
+        maintainVisibleContentPosition={{
+          minIndexForVisible: 0,
+          autoscrollToTopThreshold: 100
+        }}
       />
 
-      {/* Interaction Controls */}
+      {/* Voice Control Section - Positioned above input, hidden when keyboard is open */}
+      {!isKeyboardVisible && (
+        <View className="items-center py-4 bg-background border-t border-charcoal/20">
+          <TouchableOpacity
+            onPressIn={startRecording}
+            onPressOut={stopRecording}
+            activeOpacity={0.9}
+          >
+            <VoiceOrb
+              isRecording={isRecording}
+              isProcessing={isProcessingVoice}
+              level={recordingLevel}
+            />
+          </TouchableOpacity>
+
+          <Text className="text-turquoise/60 font-medium mt-4 uppercase tracking-[4px] text-[10px]">
+            {isRecording ? 'Listening...' : isProcessingVoice ? 'Thinking...' : 'Hold to Speak'}
+          </Text>
+        </View>
+      )}
+
+      {/* Text Input Area - Moves with keyboard */}
       <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
+        style={{ backgroundColor: '#0a1416' }}
       >
-        <View className="bg-background/95 border-t border-charcoal/20" style={{ paddingBottom: insets.bottom }}>
-          {/* Voice Control Row - Hidden when keyboard is open to save space */}
-          {!isKeyboardVisible && (
-            <View className="items-center pb-6 pt-4">
-              <TouchableOpacity
-                onPressIn={startRecording}
-                onPressOut={stopRecording}
-                activeOpacity={0.9}
-              >
-                <VoiceOrb
-                  isRecording={isRecording}
-                  isProcessing={isProcessingVoice}
-                  level={recordingLevel}
-                />
-              </TouchableOpacity>
-
-              <Text className="text-turquoise/60 font-medium mt-4 uppercase tracking-[4px] text-[10px]">
-                {isRecording ? 'Listening...' : isProcessingVoice ? 'Thinking...' : 'Hold to Speak'}
-              </Text>
-            </View>
-          )}
-
-          {/* Text Input Row */}
-          <View className={`px-4 ${isKeyboardVisible ? 'py-3' : 'pb-6'}`}>
-            <View className="flex-row items-center bg-teal-medium/30 rounded-2xl px-2 py-1.5 border border-charcoal/30">
-              <TextInput
-                className="flex-1 text-white text-base py-1 px-3"
-                placeholder="Type a message..."
-                placeholderTextColor="#6b7280"
-                value={inputText}
-                onChangeText={setInputText}
-                onSubmitEditing={handleTextSend}
-              />
-              <TouchableOpacity
-                onPress={handleTextSend}
-                disabled={!inputText.trim()}
-                className={`w-9 h-9 rounded-full items-center justify-center ${inputText.trim() ? 'bg-turquoise' : 'bg-charcoal/50'}`}
-              >
-                <Ionicons name="send" size={16} color={inputText.trim() ? '#0a1416' : '#9ca3af'} />
-              </TouchableOpacity>
-            </View>
+        <View
+          className="px-4 py-3 bg-background border-t border-charcoal/20"
+          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+        >
+          <View className="flex-row items-center bg-teal-medium/30 rounded-2xl px-2 py-1.5 border border-charcoal/30">
+            <TextInput
+              className="flex-1 text-white text-base py-2 px-3"
+              placeholder="Type a message..."
+              placeholderTextColor="#6b7280"
+              value={inputText}
+              onChangeText={setInputText}
+              onSubmitEditing={handleTextSend}
+              returnKeyType="send"
+              onFocus={() => {
+                setTimeout(() => {
+                  flatListRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }}
+            />
+            <TouchableOpacity
+              onPress={handleTextSend}
+              disabled={!inputText.trim()}
+              className={`w-10 h-10 rounded-full items-center justify-center ${inputText.trim() ? 'bg-turquoise' : 'bg-charcoal/50'}`}
+            >
+              <Ionicons name="send" size={18} color={inputText.trim() ? '#0a1416' : '#9ca3af'} />
+            </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
