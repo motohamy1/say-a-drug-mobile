@@ -268,7 +268,7 @@ const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
   );
 };
 
-const Say = () => {
+const ChatTab = () => {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const [messages, setMessages] = useState<Message[]>([
@@ -457,109 +457,104 @@ const Say = () => {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-background">
+    <View className="flex-1 bg-background">
       {/* Header */}
-      <View className="flex-row items-center justify-between px-6 py-4 border-b border-charcoal/30 bg-deep-teal/40">
-        <View className="flex-row items-center">
-          <View className="w-10 h-10 rounded-full bg-turquoise/10 items-center justify-center border border-turquoise/30 mr-3">
-            <Ionicons name="medical" size={20} color="#2dd4bf" />
+      <SafeAreaView edges={['top']} className="bg-deep-teal/40">
+        <View className="flex-row items-center justify-between px-6 py-4 border-b border-charcoal/30">
+          <View className="flex-row items-center">
+            <View className="w-10 h-10 rounded-full bg-turquoise/10 items-center justify-center border border-turquoise/30 mr-3">
+              <Ionicons name="medical" size={20} color="#2dd4bf" />
+            </View>
+            <View>
+              <Text className="text-white font-bold text-lg">Med Arena</Text>
+              <Animated.Text className="text-turquoise text-[10px] font-bold uppercase tracking-widest">
+                {isTyping ? 'Thinking...' : isRecording ? 'Listening...' : isProcessingVoice ? 'Processing...' : 'Medical AI'}
+              </Animated.Text>
+            </View>
           </View>
-          <View>
-            <Text className="text-white font-bold text-lg">DrugFriend</Text>
-            <Animated.Text className="text-turquoise text-[10px] font-bold uppercase tracking-widest">
-              {isRecording ? 'Listening...' : isProcessingVoice ? 'Analyzing Voice...' : 'Voice AI'}
-            </Animated.Text>
-          </View>
+
+          {messages.length > 1 && (
+            <TouchableOpacity
+              onPress={clearHistory}
+              className="w-10 h-10 rounded-full bg-teal-medium/50 items-center justify-center border border-white/5"
+            >
+              <Ionicons name="trash-outline" size={18} color="#ef4444" />
+            </TouchableOpacity>
+          )}
         </View>
+      </SafeAreaView>
 
-        {messages.length > 1 && (
-          <TouchableOpacity
-            onPress={clearHistory}
-            className="w-10 h-10 rounded-full bg-teal-medium/50 items-center justify-center border border-white/5"
-          >
-            <Ionicons name="trash-outline" size={18} color="#ef4444" />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* Chat List */}
-      <FlatList
-        ref={flatListRef}
-        className="flex-1"
-        data={messages}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ChatBubble message={item} />}
-        contentContainerStyle={{
-          paddingVertical: 20,
-          flexGrow: 1
-        }}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
-        keyboardShouldPersistTaps="handled"
-        keyboardDismissMode="interactive"
-        maintainVisibleContentPosition={{
-          minIndexForVisible: 0,
-          autoscrollToTopThreshold: 100
-        }}
-      />
-
-      {/* Voice Control Section - Positioned above input, hidden when keyboard is open */}
-      {!isKeyboardVisible && (
-        <View className="items-center py-4 bg-background border-t border-charcoal/20">
-          <TouchableOpacity
-            onPressIn={startRecording}
-            onPressOut={stopRecording}
-            activeOpacity={0.9}
-          >
-            <VoiceOrb
-              isRecording={isRecording}
-              isProcessing={isProcessingVoice}
-              level={recordingLevel}
-            />
-          </TouchableOpacity>
-
-          <Text className="text-turquoise/60 font-medium mt-4 uppercase tracking-[4px] text-[10px]">
-            {isRecording ? 'Listening...' : isProcessingVoice ? 'Thinking...' : 'Hold to Speak'}
-          </Text>
-        </View>
-      )}
-
-      {/* Text Input Area - Moves with keyboard */}
+      {/* Main Chat Area with Keyboard Handling */}
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 0}
-        style={{ backgroundColor: '#0a1416' }}
+        className="flex-1"
+        style={{ flex: 1 }}
       >
+        {/* Chat Messages */}
+        <FlatList
+          ref={flatListRef}
+          data={messages}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => <ChatBubble message={item} />}
+          contentContainerStyle={{
+            paddingTop: 16,
+            paddingBottom: 16,
+            flexGrow: 1,
+          }}
+          onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+          onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
+          keyboardShouldPersistTaps="handled"
+          keyboardDismissMode="interactive"
+          showsVerticalScrollIndicator={false}
+          style={{ flex: 1 }}
+        />
+
+        {/* Input Area - Gemini/ChatGPT Style */}
         <View
-          className="px-4 py-3 bg-background border-t border-charcoal/20"
-          style={{ paddingBottom: Math.max(insets.bottom, 12) }}
+          className="bg-background border-t border-charcoal/30"
+          style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom : 8 }}
         >
-          <View className="flex-row items-center bg-teal-medium/30 rounded-2xl px-2 py-1.5 border border-charcoal/30">
-            <TextInput
-              className="flex-1 text-white text-base py-2 px-3"
-              placeholder="Type a message..."
-              placeholderTextColor="#6b7280"
-              value={inputText}
-              onChangeText={setInputText}
-              onSubmitEditing={handleTextSend}
-              returnKeyType="send"
-              onFocus={() => {
-                setTimeout(() => {
-                  flatListRef.current?.scrollToEnd({ animated: true });
-                }, 100);
-              }}
-            />
-            <TouchableOpacity
-              onPress={handleTextSend}
-              disabled={!inputText.trim()}
-              className={`w-10 h-10 rounded-full items-center justify-center ${inputText.trim() ? 'bg-turquoise' : 'bg-charcoal/50'}`}
-            >
-              <Ionicons name="send" size={18} color={inputText.trim() ? '#0a1416' : '#9ca3af'} />
-            </TouchableOpacity>
+          <View className="px-4 py-3">
+            <View className="flex-row items-end bg-teal-medium/40 rounded-3xl px-4 py-2 border border-charcoal/40">
+              {/* Expandable Text Input */}
+              <TextInput
+                className="flex-1 text-white text-base max-h-32 py-2"
+                placeholder="Ask a medical question..."
+                placeholderTextColor="#6b7280"
+                value={inputText}
+                onChangeText={setInputText}
+                onSubmitEditing={handleTextSend}
+                returnKeyType="send"
+                multiline
+                textAlignVertical="center"
+                style={{ minHeight: 24 }}
+              />
+
+              {/* Send Button */}
+              <TouchableOpacity
+                onPress={handleTextSend}
+                disabled={!inputText.trim() || isTyping}
+                className={`w-9 h-9 rounded-full items-center justify-center ml-2 ${inputText.trim() && !isTyping ? 'bg-turquoise' : 'bg-charcoal/60'
+                  }`}
+              >
+                {isTyping ? (
+                  <ActivityIndicator size="small" color="#9ca3af" />
+                ) : (
+                  <Ionicons
+                    name="arrow-up"
+                    size={20}
+                    color={inputText.trim() ? '#0a1416' : '#6b7280'}
+                  />
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 };
 
-export default Say;
+export default ChatTab;
+

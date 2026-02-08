@@ -20,9 +20,9 @@ export default function TabLayout() {
 
       }} >
       <Tabs.Screen
-        name="say"
+        name="ChatTab"
         options={{
-          title: "Drugs Area",
+          title: "Chat Arena",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
               name={focused ? "chatbubbles" : "chatbubbles-outline"}

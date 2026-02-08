@@ -1,4 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
+import * as Haptics from 'expo-haptics';
+import { router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   ScrollView,
@@ -9,8 +11,6 @@ import {
   View
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
 import { useUserProfile } from '../../hooks/useUserProfile';
 
 // Types
@@ -52,7 +52,7 @@ const TopAppBar = () => (
 // Profile Header Component
 const ProfileHeader = ({ profile, loading }: { profile: any; loading: boolean }) => {
   const displayName = profile?.full_name || profile?.username || 'User';
-  const memberSince = profile?.updated_at 
+  const memberSince = profile?.updated_at
     ? new Date(profile.updated_at).getFullYear().toString()
     : new Date().getFullYear().toString();
 
@@ -256,7 +256,7 @@ const BottomNavigation = () => (
       <View className="relative -top-5">
         <TouchableOpacity
           className="w-14 h-14 bg-turquoise rounded-full items-center justify-center shadow-glow-cyan"
-          onPress={() => router.push('/(tabs)/Say')}
+          onPress={() => router.push('/(tabs)/ChatTab')}
         >
           <Ionicons name="sparkles" size={28} color="#0a1416" />
         </TouchableOpacity>
@@ -264,7 +264,7 @@ const BottomNavigation = () => (
 
       <TouchableOpacity
         className="flex-col items-center justify-center w-full h-full gap-1"
-        onPress={() => router.push('/(tabs)/Say')}
+        onPress={() => router.push('/(tabs)/ChatTab')}
       >
         <Ionicons name="chatbubbles" size={24} color="#9ca3af" />
         <Text className="text-[10px] font-medium text-gray-muted">Chat</Text>

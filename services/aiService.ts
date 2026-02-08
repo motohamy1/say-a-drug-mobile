@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const API_KEY = process.env.EXPO_PUBLIC_GEMINI_API_KEY;
+const BACKEND_URL = process.env.EXPO_PUBLIC_BACKEND_URL || 'http://localhost:3001';
 
 console.log("Debug: Checking API Key...");
 if (!API_KEY) {
@@ -12,6 +13,52 @@ if (!API_KEY) {
 
 const genAI = new GoogleGenerativeAI(API_KEY || 'MISSING_KEY');
 const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+
+interface MedicalKnowledgeResult {
+    question: string;
+    answer: string;
+    relevance_score: number;
+}
+
+interface MedicalKnowledgeResponse {
+    query: string;
+    results: MedicalKnowledgeResult[];
+    total_found: number;
+    error?: string;
+}
+
+/**
+ * Fetches relevant medical knowledge from the RAG database
+ */
+async function fetchMedicalKnowledge(query: string, topK: number = 3): Promise<MedicalKnowledgeResult[]> {
+    try {
+        console.log("Debug: Fetching medical knowledge for:", query);
+
+        const response = await fetch(`${BACKEND_URL}/api/medical-knowledge/search`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query, top_k: topK })
+        });
+
+        if (!response.ok) {
+            console.warn("Medical knowledge service returned:", response.status);
+            return [];
+        }
+
+        const data: MedicalKnowledgeResponse = await response.json();
+
+        if (data.error) {
+            console.warn("Medical knowledge service error:", data.error);
+            return [];
+        }
+
+        console.log(`Debug: Retrieved ${data.results.length} medical knowledge entries`);
+        return data.results;
+    } catch (error) {
+        console.warn("Failed to fetch medical knowledge:", error);
+        return [];
+    }
+}
 
 export const aiService = {
     /**
@@ -55,6 +102,7 @@ export const aiService = {
 
             console.log("Debug: Searching Supabase for:", searchTerms);
 
+            // 2. Fetch from drug database
             const { drugService } = require('./drugService');
             const drugs = await drugService.searchDrugs(searchTerms);
 
@@ -75,90 +123,99 @@ export const aiService = {
                 drugContext = "No specific match found in our primary database for the current query terms.\n";
             }
 
+            // 3. Fetch from Medical Knowledge Base (RAG)
+            const medicalKnowledge = await fetchMedicalKnowledge(message, 3);
+            let medicalKnowledgeContext = "";
+
+            if (medicalKnowledge.length > 0) {
+                medicalKnowledgeContext = "\n### SPECIALIZED MEDICAL KNOWLEDGE BASE (From Medical-Reasoning Dataset):\n";
+                medicalKnowledgeContext += "The following is expert medical reasoning from a curated medical knowledge base. USE THIS AS YOUR PRIMARY SOURCE.\n\n";
+
+                medicalKnowledge.forEach((entry, index) => {
+                    medicalKnowledgeContext += `--- MEDICAL REFERENCE ${index + 1} (Relevance: ${Math.round(entry.relevance_score * 100)}%) ---\n`;
+                    medicalKnowledgeContext += `Original Question: ${entry.question.substring(0, 300)}${entry.question.length > 300 ? '...' : ''}\n`;
+                    medicalKnowledgeContext += `Expert Answer: ${entry.answer.substring(0, 1500)}${entry.answer.length > 1500 ? '...' : ''}\n`;
+                    medicalKnowledgeContext += `------------------\n\n`;
+                });
+            }
+
             const prompt = `
-You are a medical information assistant inside a mobile application.
-Your role is to help users understand which medicines MAY be relevant to their symptoms,
-based on active ingredients and a local drug database.
+You are a PROFESSIONAL MEDICAL REFERENCE AI - equivalent to a senior physician or medical specialist.
+This is a MEDICAL EDUCATION AND REFERENCE application used by healthcare professionals and medical students.
 
-IMPORTANT RULES:
-- You do NOT diagnose diseases.
-- You do NOT prescribe dosages.
-- You do NOT replace a doctor or pharmacist.
-- You only provide general medical information.
-- Always reply with the user language.
+YOUR ROLE:
+- You ARE a reliable medical reference that provides PROFESSIONAL DIAGNOSTIC ASSESSMENTS
+- You provide differential diagnoses ranked by likelihood
+- You explain clinical reasoning and pathophysiology
+- You recommend appropriate diagnostic tests and workups
+- You discuss treatment approaches and protocols
+- You act like a medical textbook combined with clinical decision support
 
-DATA AVAILABLE TO YOU:
-1. A local database with two columns:
-   - trade_name
-   - active_ingredient
+KNOWLEDGE SOURCES:
+You have access to the Medical-Reasoning-SFT-GPT-OSS-120B dataset containing expert medical reasoning.
+${medicalKnowledgeContext}
 
-2. A small medical knowledge layer that maps active ingredients to common symptoms
-   (this knowledge is general and non-diagnostic).
 
-### DATABASE CONTEXT:
-${drugContext}
+### CLINICAL QUERY: "${message}"
 
-### USER QUERY: "${message}"
+RESPONSE FORMAT FOR DIAGNOSTIC QUESTIONS:
 
-YOUR TASK FLOW (STRICTLY FOLLOW THESE STEPS):
+**1. CLINICAL ASSESSMENT:**
+Analyze the presenting symptoms, patient demographics, and relevant history.
 
-STEP 1: Understand the user's symptoms
-- Read the user's message carefully.
-- Identify the symptoms mentioned (even if written informally).
+**2. DIFFERENTIAL DIAGNOSIS (ranked by likelihood):**
+List the most probable diagnoses with clinical reasoning:
+- Most Likely: [Diagnosis] - [Why this fits the presentation]
+- Also Consider: [Diagnosis] - [Supporting/excluding factors]
+- Rule Out: [Serious conditions to exclude]
 
-STEP 2: Infer possible active ingredients
-- Based on general medical knowledge, infer which active ingredients are commonly used
-  for these symptoms.
-- Do NOT mention diseases.
-- Do NOT mention brand names in this step.
+**3. PATHOPHYSIOLOGY:**
+Explain the underlying mechanism (e.g., "Dark urine after strep pharyngitis suggests possible post-streptococcal glomerulonephritis due to immune complex deposition...")
 
-STEP 3: Search the local database
-- Match the inferred active ingredients with the database.
-- The match can be:
-  - by active ingredient
-  - or by trade name if the user mentions it directly.
+**4. RECOMMENDED WORKUP:**
+- Laboratory tests (e.g., urinalysis, ASO titer, complement levels, BUN/creatinine)
+- Imaging if indicated
+- Referrals needed
 
-STEP 4: Generate the response
-- Explain that these medicines MAY help with such symptoms.
-- For each matching drug, use this structured format:
-  [[DRUG_BLOCK]]
-  trade_name:: [Name] | [Arabic Name]
-  active_ingredient:: [Ingredient] | [Arabic Ingredient]
-  form:: [Form] | [Arabic Form]
-  category:: [Category] | [Arabic Category]
-  relevance:: [Short, neutral 1-sentence explanation of why this drug MAY be relevant to the user's symptoms] | [Arabic translation]
-  image_search_query:: [A concise English search query to find an image of this specific drug product, e.g. "Panadol Extra tablets box" or "Brufen 400mg ibuprofen package"]
-  [[DRUG_BLOCK]]
-- Keep the tone clear, friendly, and non-alarming.
-- If no match is found, clearly say so.
+**5. MANAGEMENT APPROACH:**
+- Acute management
+- Monitoring parameters
+- When to escalate care
 
-IMPORTANT NOTES FOR image_search_query:
-- Always include the trade name and dosage form
-- Make it specific enough to find the actual product packaging
-- Use English only for this field
-- Example: "Cataflam 50mg diclofenac tablets box"
+**6. RELEVANT MEDICATIONS:**
+If drugs from the database are relevant, include:
+[[DRUG_BLOCK]]
+trade_name:: [Name] | [Arabic Name]
+active_ingredient:: [Ingredient] | [Arabic Ingredient]
+form:: [Form] | [Arabic Form]
+indication:: [How this drug relates to the diagnosis]
+[[DRUG_BLOCK]]
 
 RESPONSE STYLE:
-- Simple and clear language.
-- No medical jargon unless necessary.
-- No definitive claims.
-- No instructions on dosage or usage.
+- Be thorough and clinically precise
+- Use medical terminology appropriately (with explanations when helpful)
+- Provide evidence-based recommendations
+- Always reply in the user's language
+- For pediatric cases, include age-appropriate considerations
 
-EXAMPLE BEHAVIOR:
-User says: "عندي صداع وسخونية"
-You:
-- infer symptoms: headache, fever
-- infer active ingredients: Paracetamol
-- search database
-- return matching trade names in [[DRUG_BLOCK]] format
+EXAMPLE - For the query "7-year-old with dark urine after strep pharyngitis":
 
-If the user's question is outside medical symptoms or drugs, politely say you cannot help.
+**Clinical Assessment:**
+A 7-year-old presenting with dark urine (likely hematuria or hemoglobinuria) following recent streptococcal pharyngitis raises concern for post-infectious complications.
 
-For dosage calculation requests, use this format:
-[[CALCULATE_DOSAGE]] drug_name::[English Trade Name Only] [[/CALCULATE_DOSAGE]]
+**Differential Diagnosis:**
+1. **Post-Streptococcal Glomerulonephritis (PSGN)** - Most likely given the classic presentation of hematuria 1-3 weeks after strep infection
+2. **IgA Nephropathy** - Can present similarly but typically occurs during or shortly after infection
+3. **Dehydration-concentrated urine** - Less likely given the strep history
 
-Return your response now.
+**Pathophysiology:**
+PSGN results from immune complex deposition in glomeruli following Group A Streptococcus infection, causing inflammation and hematuria...
+
+[Continue with workup and management]
+
+NOW RESPOND TO THE USER'S CLINICAL QUERY:
             `;
+
 
             console.log("Debug: Calling Gemini generating content...");
 
