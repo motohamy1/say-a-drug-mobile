@@ -1,10 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
-import { Audio } from 'expo-av';
-import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
   Dimensions,
   FlatList,
   Keyboard,
@@ -274,7 +273,7 @@ const ChatTab = () => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
-      text: "Hello! I'm Pharma DrugFriend. Press and hold the microphone below to talk to me about any medication.",
+      text: "Hello! I'm Med Arena AI. I can assist you with medical diagnoses, general health questions, and specific drug information. Press and hold the microphone below or type your question to get started.",
       isUser: false,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
     },
@@ -285,9 +284,9 @@ const ChatTab = () => {
   const [recordingLevel, setRecordingLevel] = useState(0);
   const [isProcessingVoice, setIsProcessingVoice] = useState(false);
   const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
+  const [isFastRecapMode, setIsFastRecapMode] = useState(false);
 
   const flatListRef = useRef<FlatList>(null);
-  const recordingRef = useRef<Audio.Recording | null>(null);
 
   useEffect(() => {
     const keyboardShowListener = Keyboard.addListener(
@@ -308,90 +307,15 @@ const ChatTab = () => {
     return () => {
       keyboardShowListener.remove();
       keyboardHideListener.remove();
-      if (recordingRef.current) {
-        recordingRef.current.stopAndUnloadAsync();
-      }
     };
   }, []);
 
   const startRecording = async () => {
-    try {
-      if (isRecording) return;
-      if (recordingRef.current) {
-        try {
-          await (recordingRef.current as Audio.Recording).stopAndUnloadAsync();
-        } catch (e) { }
-        recordingRef.current = null;
-      }
-
-      const permission = await Audio.requestPermissionsAsync();
-      if (permission.status === 'granted') {
-        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-        });
-
-        const { recording } = await Audio.Recording.createAsync(
-          Audio.RecordingOptionsPresets.HIGH_QUALITY
-        );
-        recordingRef.current = recording;
-        setIsRecording(true);
-
-        recording.setOnRecordingStatusUpdate((status) => {
-          if (status.metering !== undefined) {
-            const level = Math.max(0, (status.metering + 160) / 160);
-            setRecordingLevel(level);
-          }
-        });
-      }
-    } catch (err) {
-      console.error('Failed to start recording', err);
-      setIsRecording(false);
-      recordingRef.current = null;
-    }
+    Alert.alert("Notice", "Voice recording is temporarily disabled.");
   };
 
   const stopRecording = async () => {
-    if (!recordingRef.current) return;
-
-    const rec = recordingRef.current;
-    recordingRef.current = null;
-
-    try {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      setIsRecording(false);
-      setIsProcessingVoice(true);
-      setRecordingLevel(0);
-
-      await rec.stopAndUnloadAsync();
-      const uri = rec.getURI();
-
-      if (uri) {
-        const fileContent = await fetch(uri);
-        const blob = await fileContent.blob();
-        const reader = new FileReader();
-        reader.onloadend = async () => {
-          try {
-            const base64Audio = (reader.result as string).split(',')[1];
-            const result = await aiService.processAudio(base64Audio);
-            handleQuery(result.text, result.reply);
-          } catch (aiErr) {
-            console.error('AI Processing Error:', aiErr);
-          } finally {
-            setIsProcessingVoice(false);
-          }
-        };
-        reader.readAsDataURL(blob);
-      } else {
-        setIsProcessingVoice(false);
-      }
-    } catch (err) {
-      console.error('Failed to stop recording', err);
-      setIsProcessingVoice(false);
-      setIsRecording(false);
-    }
+    // Disabled
   };
 
   const handleQuery = (text: string, reply: string) => {
@@ -443,8 +367,10 @@ const ChatTab = () => {
     setIsTyping(true);
 
     try {
-      const aiResponse = await aiService.sendMessageByText(query);
+      const mode = isFastRecapMode ? 'fast_recap' : 'general';
+      const aiResponse = await aiService.sendMessageByText(query, mode);
       handleQuery(query, aiResponse);
+      if (isFastRecapMode) setIsFastRecapMode(false); // Reset after single use
     } catch (error) {
       console.error(error);
     } finally {
@@ -515,6 +441,32 @@ const ChatTab = () => {
           className="bg-background border-t border-charcoal/30"
           style={{ paddingBottom: Platform.OS === 'ios' ? insets.bottom : 8 }}
         >
+          {/* Presets / Tools */}
+          <View className="flex-row px-4 pt-3 pb-1">
+            <TouchableOpacity
+              onPress={() => {
+                const newMode = !isFastRecapMode;
+                setIsFastRecapMode(newMode);
+                if (newMode) {
+                  const aiMessage: Message = {
+                    id: Date.now().toString(),
+                    text: "Fast Topic Recap Mode activated. What medical topic would you like a quick recap on?",
+                    isUser: false,
+                    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                  };
+                  setMessages(prev => [...prev, aiMessage]);
+                  setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
+                }
+              }}
+              className={`flex-row items-center px-3 py-1.5 rounded-full border \${isFastRecapMode ? 'bg-turquoise border-turquoise' : 'bg-transparent border-turquoise/50'}`}
+            >
+              <Ionicons name="flash" size={14} color={isFastRecapMode ? '#0a1416' : '#2dd4bf'} />
+              <Text className={`ml-1 text-xs font-semibold \${isFastRecapMode ? 'text-black' : 'text-turquoise'}`}>
+                Fast Topic Recap
+              </Text>
+            </TouchableOpacity>
+          </View>
+
           <View className="px-4 py-3">
             <View className="flex-row items-end bg-teal-medium/40 rounded-3xl px-4 py-2 border border-charcoal/40">
               {/* Expandable Text Input */}
