@@ -182,12 +182,141 @@ const VoiceOrb: React.FC<{ isRecording: boolean; isProcessing: boolean; level: n
   );
 };
 
+// Medical section config: each heading gets a unique color + accent
+const SECTION_CONFIG: Record<string, { color: string; border: string; icon: string; label: string }> = {
+  // --- Clinical case / disease ---
+  'CLINICAL ASSESSMENT': { color: '#38bdf8', border: '#0ea5e9', icon: 'clipboard-outline', label: 'Clinical Assessment' },
+  'DIFFERENTIAL DIAGNOSIS': { color: '#f472b6', border: '#ec4899', icon: 'git-branch-outline', label: 'Differential Diagnosis' },
+  'MANAGEMENT / WORKUP': { color: '#34d399', border: '#10b981', icon: 'pulse-outline', label: 'Management / Workup' },
+  'RELEVANT MEDICATIONS': { color: '#fb923c', border: '#f97316', icon: 'medkit-outline', label: 'Relevant Medications' },
+  // --- Scoring systems ---
+  'OVERVIEW': { color: '#a78bfa', border: '#7c3aed', icon: 'document-text-outline', label: 'Overview' },
+  'SCORING CRITERIA': { color: '#38bdf8', border: '#0ea5e9', icon: 'list-outline', label: 'Scoring Criteria' },
+  'INTERPRETATION': { color: '#34d399', border: '#10b981', icon: 'analytics-outline', label: 'Interpretation' },
+  'CLINICAL USE': { color: '#fb923c', border: '#f97316', icon: 'medical-outline', label: 'Clinical Use' },
+  // --- Drug / medication ---
+  'DRUG OVERVIEW': { color: '#a78bfa', border: '#7c3aed', icon: 'flask-outline', label: 'Drug Overview' },
+  'MECHANISM OF ACTION': { color: '#38bdf8', border: '#0ea5e9', icon: 'nuclear-outline', label: 'Mechanism of Action' },
+  'INDICATIONS': { color: '#34d399', border: '#10b981', icon: 'checkmark-circle-outline', label: 'Indications' },
+  'DOSAGE AND FORMS': { color: '#fbbf24', border: '#d97706', icon: 'calculator-outline', label: 'Dosage and Forms' },
+  'SIDE EFFECTS': { color: '#f87171', border: '#ef4444', icon: 'warning-outline', label: 'Side Effects' },
+  'CONTRAINDICATIONS': { color: '#f87171', border: '#dc2626', icon: 'ban-outline', label: 'Contraindications' },
+  // --- General concept / procedure ---
+  'DEFINITION': { color: '#a78bfa', border: '#7c3aed', icon: 'book-outline', label: 'Definition' },
+  'KEY POINTS': { color: '#38bdf8', border: '#0ea5e9', icon: 'key-outline', label: 'Key Points' },
+  'CLINICAL RELEVANCE': { color: '#34d399', border: '#10b981', icon: 'heart-outline', label: 'Clinical Relevance' },
+  'IMPORTANT NOTES': { color: '#fb923c', border: '#f97316', icon: 'alert-circle-outline', label: 'Important Notes' },
+  // --- Investigation / lab ---
+  'NORMAL VALUES': { color: '#34d399', border: '#10b981', icon: 'checkmark-done-outline', label: 'Normal Values' },
+  'CLINICAL SIGNIFICANCE': { color: '#fbbf24', border: '#d97706', icon: 'star-outline', label: 'Clinical Significance' },
+};
+
+// Fallback color palette (cycles by section index for any unknown heading)
+const FALLBACK_PALETTE = [
+  { color: '#a78bfa', border: '#7c3aed', icon: 'information-circle-outline' },
+  { color: '#38bdf8', border: '#0ea5e9', icon: 'document-text-outline' },
+  { color: '#34d399', border: '#10b981', icon: 'list-outline' },
+  { color: '#fb923c', border: '#f97316', icon: 'alert-circle-outline' },
+  { color: '#f472b6', border: '#ec4899', icon: 'star-outline' },
+  { color: '#fbbf24', border: '#d97706', icon: 'bookmark-outline' },
+];
+
+type MedicalSection = { heading: string; content: string };
+
+function parseMedicalSections(text: string): { hasSections: boolean; sections: MedicalSection[]; plainText: string } {
+  const sectionRegex = /##([^#]+)##\s*([\s\S]*?)##END##/g;
+  const sections: MedicalSection[] = [];
+  let match;
+  let consumed = text;
+  while ((match = sectionRegex.exec(text)) !== null) {
+    sections.push({ heading: match[1].trim(), content: match[2].trim() });
+    consumed = consumed.replace(match[0], '');
+  }
+  return {
+    hasSections: sections.length > 0,
+    sections,
+    plainText: consumed.trim(),
+  };
+}
+
+const MedicalSectionBox: React.FC<{ section: MedicalSection; index: number }> = ({ section, index }) => {
+  const known = SECTION_CONFIG[section.heading.toUpperCase()];
+  const fallback = FALLBACK_PALETTE[index % FALLBACK_PALETTE.length];
+  const cfg = known
+    ? known
+    : { ...fallback, label: section.heading.charAt(0).toUpperCase() + section.heading.slice(1).toLowerCase() };
+
+  return (
+    <Animated.View
+      entering={ZoomIn.duration(400).delay(index * 120).springify()}
+      style={{
+        width: '100%',
+        marginBottom: 10,
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: cfg.border,
+        backgroundColor: '#0d1f22',
+        overflow: 'hidden',
+      }}
+    >
+      {/* Heading bar */}
+      <View
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: cfg.border + '28',
+          paddingHorizontal: 14,
+          paddingVertical: 10,
+          borderBottomWidth: 1,
+          borderBottomColor: cfg.border + '55',
+        }}
+      >
+        <Ionicons name={cfg.icon as any} size={18} color={cfg.color} style={{ marginRight: 8 }} />
+        <Text style={{ color: cfg.color, fontWeight: '800', fontSize: 13, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+          {cfg.label}
+        </Text>
+      </View>
+      {/* Content */}
+      <View style={{ paddingHorizontal: 14, paddingVertical: 12 }}>
+        <Text style={{ color: '#e2e8f0', fontSize: 14, lineHeight: 22 }}>{section.content}</Text>
+      </View>
+    </Animated.View>
+  );
+};
+
 // Chat Bubble Component
 const ChatBubble: React.FC<{ message: Message }> = ({ message }) => {
   const isAi = !message.isUser;
   const router = useRouter();
 
   if (isAi) {
+    // --- Medical section detection (new structured format) ---
+    const { hasSections, sections, plainText } = parseMedicalSections(message.text);
+
+    if (hasSections) {
+      return (
+        <View style={{ marginBottom: 16, paddingHorizontal: 16, width: '100%' }}>
+          {plainText.length > 0 && (
+            <View style={{
+              backgroundColor: 'rgba(45,212,191,0.08)',
+              borderColor: 'rgba(45,212,191,0.2)',
+              borderWidth: 1,
+              borderRadius: 16,
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              marginBottom: 10,
+            }}>
+              <Text style={{ color: '#e2e8f0', fontSize: 14, lineHeight: 22 }}>{plainText}</Text>
+            </View>
+          )}
+          {sections.map((section, i) => (
+            <MedicalSectionBox key={`sec-${i}`} section={section} index={i} />
+          ))}
+        </View>
+      );
+    }
+
+    // --- Legacy / drug-card format ---
     let rawSegments = message.text.split('[[DRUG_BLOCK]]').map(s => s.trim()).filter(s => s.length > 0);
 
     if (rawSegments.length === 1 && !message.text.includes('[[DRUG_BLOCK]]') && message.text.includes('::')) {
@@ -460,8 +589,8 @@ const ChatTab = () => {
               }}
               className={`flex-row items-center px-3 py-1.5 rounded-full border \${isFastRecapMode ? 'bg-turquoise border-turquoise' : 'bg-transparent border-turquoise/50'}`}
             >
-              <Ionicons name="flash" size={14} color={isFastRecapMode ? '#0a1416' : '#2dd4bf'} />
-              <Text className={`ml-1 text-xs font-semibold \${isFastRecapMode ? 'text-black' : 'text-turquoise'}`}>
+              <Ionicons name="flash" size={14} color={isFastRecapMode ? '#ffffffff' : '#2dd4bf'} />
+              <Text className={`ml-1 text-xs font-semibold \${isFastRecapMode ? 'text-white' : 'text-turquoise'}`}>
                 Fast Topic Recap
               </Text>
             </TouchableOpacity>
