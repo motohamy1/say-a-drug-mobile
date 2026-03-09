@@ -209,6 +209,11 @@ const SECTION_CONFIG: Record<string, { color: string; border: string; icon: stri
   // --- Investigation / lab ---
   'NORMAL VALUES': { color: '#34d399', border: '#10b981', icon: 'checkmark-done-outline', label: 'Normal Values' },
   'CLINICAL SIGNIFICANCE': { color: '#fbbf24', border: '#d97706', icon: 'star-outline', label: 'Clinical Significance' },
+  // --- Fast recap specific ---
+  'CLINICAL PICTURE': { color: '#38bdf8', border: '#0ea5e9', icon: 'eye-outline', label: 'Clinical Picture' },
+  'INVESTIGATIONS': { color: '#34d399', border: '#10b981', icon: 'flask-outline', label: 'Investigations' },
+  'UPDATED INFO / SCORES': { color: '#a78bfa', border: '#7c3aed', icon: 'trending-up-outline', label: 'Updated Info / Scores' },
+  'TREATMENT': { color: '#fb923c', border: '#f97316', icon: 'medkit-outline', label: 'Treatment' },
 };
 
 // Fallback color palette (cycles by section index for any unknown heading)
@@ -587,10 +592,10 @@ const ChatTab = () => {
                   setTimeout(() => flatListRef.current?.scrollToEnd({ animated: true }), 100);
                 }
               }}
-              className={`flex-row items-center px-3 py-1.5 rounded-full border \${isFastRecapMode ? 'bg-turquoise border-turquoise' : 'bg-transparent border-turquoise/50'}`}
+              className={`flex-row items-center px-3 py-1.5 rounded-full border ${isFastRecapMode ? 'bg-turquoise border-turquoise' : 'bg-transparent border-turquoise/50'}`}
             >
-              <Ionicons name="flash" size={14} color={isFastRecapMode ? '#ffffffff' : '#2dd4bf'} />
-              <Text className={`ml-1 text-xs font-semibold \${isFastRecapMode ? 'text-white' : 'text-turquoise'}`}>
+              <Ionicons name="flash" size={14} color={isFastRecapMode ? '#0a1416' : '#2dd4bf'} />
+              <Text className={`ml-1 text-xs font-semibold ${isFastRecapMode ? 'text-deep-teal' : 'text-turquoise'}`}>
                 Fast Topic Recap
               </Text>
             </TouchableOpacity>
