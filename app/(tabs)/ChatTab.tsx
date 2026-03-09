@@ -187,6 +187,7 @@ const SECTION_CONFIG: Record<string, { color: string; border: string; icon: stri
   // --- Clinical case / disease ---
   'CLINICAL ASSESSMENT': { color: '#38bdf8', border: '#0ea5e9', icon: 'clipboard-outline', label: 'Clinical Assessment' },
   'DIFFERENTIAL DIAGNOSIS': { color: '#f472b6', border: '#ec4899', icon: 'git-branch-outline', label: 'Differential Diagnosis' },
+  'INVESTIGATIONS / WORKUP': { color: '#34d399', border: '#10b981', icon: 'pulse-outline', label: 'Investigations / Workup' },
   'MANAGEMENT / WORKUP': { color: '#34d399', border: '#10b981', icon: 'pulse-outline', label: 'Management / Workup' },
   'RELEVANT MEDICATIONS': { color: '#fb923c', border: '#f97316', icon: 'medkit-outline', label: 'Relevant Medications' },
   // --- Scoring systems ---
@@ -211,6 +212,7 @@ const SECTION_CONFIG: Record<string, { color: string; border: string; icon: stri
   'CLINICAL SIGNIFICANCE': { color: '#fbbf24', border: '#d97706', icon: 'star-outline', label: 'Clinical Significance' },
   // --- Fast recap specific ---
   'CLINICAL PICTURE': { color: '#38bdf8', border: '#0ea5e9', icon: 'eye-outline', label: 'Clinical Picture' },
+  'SIGNS & SYMPTOMS': { color: '#38bdf8', border: '#0ea5e9', icon: 'eye-outline', label: 'Signs & Symptoms' },
   'INVESTIGATIONS': { color: '#34d399', border: '#10b981', icon: 'flask-outline', label: 'Investigations' },
   'UPDATED INFO / SCORES': { color: '#a78bfa', border: '#7c3aed', icon: 'trending-up-outline', label: 'Updated Info / Scores' },
   'TREATMENT': { color: '#fb923c', border: '#f97316', icon: 'medkit-outline', label: 'Treatment' },
@@ -229,23 +231,38 @@ const FALLBACK_PALETTE = [
 type MedicalSection = { heading: string; content: string };
 
 function parseMedicalSections(text: string): { hasSections: boolean; sections: MedicalSection[]; plainText: string } {
-  const sectionRegex = /##([^#]+)##\s*([\s\S]*?)##END##/g;
+  // Split by ##HEADER##, then parse pairs. We expect: [pre-text, HEAD, content, HEAD, content, ...]
+  const parts = text.split(/##(.*?)##/);
   const sections: MedicalSection[] = [];
-  let match;
-  let consumed = text;
-  while ((match = sectionRegex.exec(text)) !== null) {
-    sections.push({ heading: match[1].trim(), content: match[2].trim() });
-    consumed = consumed.replace(match[0], '');
+  let plainText = parts[0]?.trim() || '';
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const heading = parts[i]?.trim();
+    let content = parts[i + 1] || '';
+
+    // Clean up ##END## if present in content
+    content = content.replace(/##END##/gi, '').trim();
+
+    if (heading && heading !== 'END') {
+      sections.push({ heading, content });
+    }
   }
+
   return {
     hasSections: sections.length > 0,
     sections,
-    plainText: consumed.trim(),
+    plainText,
   };
 }
 
 const MedicalSectionBox: React.FC<{ section: MedicalSection; index: number }> = ({ section, index }) => {
-  const known = SECTION_CONFIG[section.heading.toUpperCase()];
+  const upHeading = section.heading.toUpperCase();
+  // Find a match where the config key is inside the heading or vice-versa
+  const matchedKey = Object.keys(SECTION_CONFIG).find(key =>
+    upHeading === key || upHeading.includes(key) || key.includes(upHeading)
+  );
+
+  const known = matchedKey ? SECTION_CONFIG[matchedKey] : null;
   const fallback = FALLBACK_PALETTE[index % FALLBACK_PALETTE.length];
   const cfg = known
     ? known

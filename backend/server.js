@@ -1,23 +1,22 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-const { GoogleGenerativeAI } = require('@google/generative-ai');
+const Groq = require('groq-sdk');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
 const PORT = process.env.PORT || 3001;
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
+const GROQ_API_KEY = process.env.GROQ_API_KEY;
 const HF_TOKEN = process.env.HF_TOKEN;
 
-if (!GEMINI_API_KEY) {
-    console.error('CRITICAL: GEMINI_API_KEY is missing in backend/.env');
-    process.exit(1);
+if (!GROQ_API_KEY || GROQ_API_KEY === 'PASTE_YOUR_GROQ_KEY_HERE') {
+    console.error('CRITICAL: GROQ_API_KEY is missing in backend/.env');
+    // We don't exit here to allow health checks, but AI calls will fail
 }
 
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+const groq = new Groq({ apiKey: GROQ_API_KEY });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -36,14 +35,19 @@ async function fetchMedicalKnowledge(query) {
         if (data.error || !data.rows?.length) return '';
 
         let context = '';
-        data.rows.slice(0, 3).forEach((rowItem, index) => {
+        data.rows.slice(0, 2).forEach((rowItem, index) => {
             const messages = rowItem.row.messages || [];
             const userMsg = messages.find((m) => m.role === 'user');
             const assistantMsg = messages.find((m) => m.role === 'assistant');
             if (userMsg && assistantMsg) {
+                // Truncate expert answer to keep context window small
+                const expertText = assistantMsg.content.length > 2000
+                    ? assistantMsg.content.substring(0, 2000) + '... [TRUNCATED]'
+                    : assistantMsg.content;
+
                 context += `--- REFERENCE ${index + 1} ---\n`;
                 context += `Original Question: ${userMsg.content}\n`;
-                context += `Expert Answer: ${assistantMsg.content}\n`;
+                context += `Expert Answer: ${expertText}\n`;
                 context += `------------------\n\n`;
             }
         });
@@ -53,13 +57,23 @@ async function fetchMedicalKnowledge(query) {
     }
 }
 
-async function callGemini(prompt, retries = 3) {
+async function callAI(prompt, retries = 3) {
+    if (!GROQ_API_KEY || GROQ_API_KEY === 'PASTE_YOUR_GROQ_KEY_HERE') {
+        throw new Error('GROQ_API_KEY is not configured');
+    }
+
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
-            const result = await model.generateContent(prompt);
-            return result.response.text().trim();
+            const result = await groq.chat.completions.create({
+                messages: [{ role: 'user', content: prompt }],
+                model: 'llama-3.1-8b-instant', // Switched from 70B to 8B for much higher TPM/RPM limits
+                temperature: 0.3,
+                max_tokens: 2048,
+            });
+            return result.choices[0]?.message?.content?.trim() || '';
         } catch (err) {
-            if (err.message?.includes('503') && attempt < retries - 1) {
+            console.error(`Attempt ${attempt + 1} failed:`, err.message);
+            if (attempt < retries - 1) {
                 await new Promise((r) => setTimeout(r, Math.pow(2, attempt + 1) * 1000));
                 continue;
             }
@@ -89,7 +103,7 @@ Rules:
 - Example: "صداع" -> "Paracetamol, Ibuprofen, Aspirin"
 - Example: "What is Panadol?" -> "Panadol, Paracetamol"
     `;
-        const keywords = await callGemini(prompt);
+        const keywords = await callAI(prompt);
         res.json({ keywords });
     } catch (err) {
         console.error('[/api/keywords]', err.message);
@@ -115,15 +129,16 @@ app.post('/api/chat', async (req, res) => {
 
         if (mode === 'fast_recap') {
             prompt = `
-You are a highly advanced Medical AI Assistant.
-YOUR TASK: Provide a FAST TOPIC RECAP for the user's selected medical topic: "${message}".
+You are a senior Medical AI Expert. 
+YOUR TASK: Provide a FAST but PROFESSIONAL TOPIC RECAP for the medical topic: "${message}".
 
 KNOWLEDGE SOURCES:
-You must base your clinical reasoning on the following medical knowledge context:
+Retrieved expert medical knowledge for context:
 ${medicalKnowledgeContext}
 
-CRITICAL FORMATTING RULE — NO EXCEPTIONS:
-Every single word of your response MUST be inside a structured section. Do NOT use any asterisks (*) or markdown bold (**). 
+STRICT FORMATTING RULE — NO EXCEPTIONS:
+Every word of your response MUST be inside a structured section. 
+Do NOT use ANY asterisks (*) or markdown bold (**). 
 
 You MUST use EXACTLY these section delimiters:
 
@@ -152,49 +167,88 @@ content
 ##END##
 
 STRICT RULES:
-- Zero asterisks (*) allowed.
-- Zero markdown bold (**) allowed.
-- No text outside of ##SECTION## blocks.
+- ZERO asterisks (*) allowed anywhere.
+- ZERO markdown bold (**) allowed anywhere.
+- No conversational text outside of ##SECTION## blocks.
+- LANGUAGE RULE: Match the user's language perfectly. If the query is in English, respond ONLY in English. If the query is in Arabic, respond in Arabic but include English medical terms in parentheses.
       `;
         } else {
             prompt = `
-You are Med Arena AI, an advanced MEDICAL AND PHARMACEUTICAL ASSISTANT.
-
-YOUR ROLE:
-You handle all types of medical queries.
+You are Med Arena AI, a senior Clinical Consultant and Pharmaceutical Expert. 
 
 KNOWLEDGE SOURCES:
-You have access to the following retrieved medical knowledge:
+Retrieved expert medical knowledge for context:
 ${medicalKnowledgeContext}
 
 ### USER QUERY: "${message}"
 
-CRITICAL FORMATTING RULE — EVERY RESPONSE MUST BE STRUCTURED:
-You MUST divide your entire response into clear sections using this exact delimiter format:
+### INSTRUCTIONS:
+Step 1: INTERNAL REASONING (DO NOT OUTPUT THIS PART):
+Before responding, internally categorize the query:
+- Is it a Disease Overview (e.g., Gastroenteritis)?
+- Is it a Clinical Case Study/Problem?
+- Is it a Medical Scoring System or Diagnostic Criteria?
+- Is it a General Medical Concern?
 
-##SECTION HEADING##
-content goes here
-##END##
+Step 2: DELIVER A PROFESSIONAL GRADE RESPONSE:
+- Provide deep, accurate, and reliable medical insights. 
+- Maintain an expert tone. Explain reasoning clearly within the sections.
 
-STRICT RULES:
-- Never use asterisks (*) or markdown bold (**).
-- Never write text before the first ##HEADING## or after the last ##END##.
-- Use 2 to 6 sections. Heading must be ALL CAPS.
+Step 3: UI DECORATION & STRUCTURE (STRICTLY START HERE):
+You MUST divide your entire response into clear sections using this exact delimiter format. 
 
-HEADING CATEGORIES:
-1. CLINICAL: ##CLINICAL ASSESSMENT##, ##DIFFERENTIAL DIAGNOSIS##, ##MANAGEMENT / WORKUP##, ##RELEVANT MEDICATIONS##
-2. SCORING: ##OVERVIEW##, ##SCORING CRITERIA##, ##INTERPRETATION##, ##CLINICAL USE##
-3. DRUG: ##DRUG OVERVIEW##, ##MECHANISM OF ACTION##, ##INDICATIONS##, ##DOSAGE AND FORMS##, ##SIDE EFFECTS##
-4. CONCEPT: ##DEFINITION##, ##KEY POINTS##, ##CLINICAL RELEVANCE##, ##IMPORTANT NOTES##
-5. LABS: ##OVERVIEW##, ##NORMAL VALUES##, ##INTERPRETATION##, ##CLINICAL SIGNIFICANCE##
+STRICT OUTPUT RULE:
+- Your final response MUST START immediately with the first ##SECTION HEADING##.
+- DO NOT list "Step 1", "Step 2", or any categorization labels in your response.
+- LANGUAGE RULE: Match the user's language perfectly. If the query is in English, respond ONLY in English. If the query is in Arabic, respond in Arabic but include medical terminology in English in parentheses for clarity (e.g., "التهاب البلعوم (Pharyngitis)").
+- NEVER use asterisks (*) or markdown bold (**).
+- ZERO markdown formatting allowed inside sections.
+- ALL HEADINGS must be in ALL CAPS.
 
-IMPORTANT: If the user writes in Arabic, reply fully in Arabic and use Arabic headings too.
+HEADING CATEGORIES (Pick the most relevant):
+- CLINICAL: ##DEFINITION##, ##CLINICAL PICTURE##, ##DIFFERENTIAL DIAGNOSIS##, ##INVESTIGATIONS##, ##TREATMENT##, ##MANAGEMENT PROTOCOL##
+- SCORING/CRITERIA: ##OVERVIEW##, ##SCORING CRITERIA##, ##INTERPRETATION##, ##CLINICAL SIGNIFICANCE##
+- DRUG/PHARMA: ##INDICATIONS##, ##CONTRAINDICATIONS##, ##SIDE EFFECTS##, ##MECHANISM##
+- GENERAL: ##KEY POINTS##, ##PROFESSIONAL ADVICE##
 
-NOW RESPOND TO THE USER'S QUERY:
+NOW RESPOND TO THE USER'S QUERY (START WITH ##):
       `;
         }
 
-        const reply = await callGemini(prompt);
+        const rawReply = await callAI(prompt);
+
+        // --- AGGRESSIVE CLEANER & FAIL-SAFE ---
+        // 1. Strip anything before the first "##"
+        let scrubbed = rawReply;
+        const firstIdx = rawReply.indexOf('##');
+        if (firstIdx !== -1) scrubbed = rawReply.substring(firstIdx);
+
+        // 2. Strong Section Whitelist: Remove any section the AI hallucinated that isn't a real UI category
+        // This stops "INTERNAL REASONING", "CATEGORIZATION", etc. from appearing.
+        const sections = scrubbed.split(/##(.*?)##/);
+        const APPROVED_HEADINGS = [
+            'DEFINITION', 'CLINICAL PICTURE', 'DIFFERENTIAL DIAGNOSIS', 'INVESTIGATIONS',
+            'TREATMENT', 'MANAGEMENT PROTOCOL', 'OVERVIEW', 'SCORING CRITERIA',
+            'INTERPRETATION', 'CLINICAL SIGNIFICANCE', 'INDICATIONS', 'CONTRAINDICATIONS',
+            'SIDE EFFECTS', 'MECHANISM', 'KEY POINTS', 'PROFESSIONAL ADVICE', 'UPDATED INFO / SCORES'
+        ];
+
+        let finalReply = '';
+        for (let i = 1; i < sections.length; i += 2) {
+            const h = sections[i].trim().toUpperCase();
+            const content = sections[i + 1] || '';
+            // Only keep if heading is in our whitelist
+            if (APPROVED_HEADINGS.some(app => h.includes(app))) {
+                finalReply += `##${sections[i]}##\n${content}\n##END##\n\n`;
+            }
+        }
+
+        // 3. Last fallback: if everything was stripped, use the scrubbed text
+        const reply = finalReply.trim() || scrubbed.trim();
+
+        console.log(`[AI Response] Scrubbed Start: "${reply.substring(0, 50).replace(/\n/g, ' ')}..."`);
+        console.log(`[AI Response Status] Structured: ${reply.includes('##')}, Length: ${reply.length}`);
+
         res.json({ reply });
     } catch (err) {
         console.error('[/api/chat]', err.message);
@@ -208,5 +262,9 @@ NOW RESPOND TO THE USER'S QUERY:
 // ─── Start ────────────────────────────────────────────────────────────────────
 app.listen(PORT, () => {
     console.log(`✅ Med Arena backend running on http://localhost:${PORT}`);
-    console.log(`   Gemini key loaded: ${GEMINI_API_KEY.substring(0, 8)}...`);
+    if (GROQ_API_KEY && GROQ_API_KEY !== 'PASTE_YOUR_GROQ_KEY_HERE') {
+        console.log(`   Groq key loaded: ${GROQ_API_KEY.substring(0, 8)}...`);
+    } else {
+        console.log(`   ⚠️ GROQ_API_KEY is not configured in .env`);
+    }
 });
